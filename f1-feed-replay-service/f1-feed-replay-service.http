@@ -1,0 +1,6 @@
+@f1_feed_replay_service_HostAddress = http://localhost:5104
+
+GET {{f1_feed_replay_service_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

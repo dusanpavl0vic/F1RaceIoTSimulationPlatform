@@ -1,0 +1,38 @@
+services:
+  f1-feed-replay-service:
+    build:
+      context: .
+      dockerfile: ./f1-feed-replay-service/Dockerfile
+    container_name: f1-feed-replay-service
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Mqtt__Enabled: "true"
+      Mqtt__Host: mosquitto
+      Mqtt__Port: "1883"
+      Mqtt__ClientId: f1-feed-replay-service
+      Mqtt__LogPayloads: "true"
+    volumes:
+      - ./docker/replay-data:/data
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: f1-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./ops/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mosquitto_pub -h localhost -p 1883 -t healthcheck -m ping >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
