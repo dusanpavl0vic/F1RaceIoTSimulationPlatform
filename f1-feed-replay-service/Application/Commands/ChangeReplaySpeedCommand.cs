@@ -1,0 +1,3 @@
+namespace F1.FeedReplay.Service.Application.Commands;
+
+public sealed record ChangeReplaySpeedCommand(double Speed);

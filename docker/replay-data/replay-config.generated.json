@@ -1,0 +1,131 @@
+{
+  "SessionId": "2021-09-12-italian-grand-prix-race",
+  "ReplaySpeed": 1,
+  "StartOffsetMs": 0,
+  "Feeds": [
+    {
+      "Name": "ArchiveStatus",
+      "FilePath": "./feeds/ArchiveStatus.jsonStream"
+    },
+    {
+      "Name": "AudioStreams",
+      "FilePath": "./feeds/AudioStreams.jsonStream"
+    },
+    {
+      "Name": "CarData.z",
+      "FilePath": "./feeds/CarData.z.jsonStream"
+    },
+    {
+      "Name": "ChampionshipPrediction",
+      "FilePath": "./feeds/ChampionshipPrediction.jsonStream"
+    },
+    {
+      "Name": "ContentStreams",
+      "FilePath": "./feeds/ContentStreams.jsonStream"
+    },
+    {
+      "Name": "CurrentTyres",
+      "FilePath": "./feeds/CurrentTyres.jsonStream"
+    },
+    {
+      "Name": "DriverList",
+      "FilePath": "./feeds/DriverList.jsonStream"
+    },
+    {
+      "Name": "DriverRaceInfo",
+      "FilePath": "./feeds/DriverRaceInfo.jsonStream"
+    },
+    {
+      "Name": "DriverScore",
+      "FilePath": "./feeds/DriverScore.jsonStream"
+    },
+    {
+      "Name": "ExtrapolatedClock",
+      "FilePath": "./feeds/ExtrapolatedClock.jsonStream"
+    },
+    {
+      "Name": "Heartbeat",
+      "FilePath": "./feeds/Heartbeat.jsonStream"
+    },
+    {
+      "Name": "LapCount",
+      "FilePath": "./feeds/LapCount.jsonStream"
+    },
+    {
+      "Name": "LapSeries",
+      "FilePath": "./feeds/LapSeries.jsonStream"
+    },
+    {
+      "Name": "PitLaneTimeCollection",
+      "FilePath": "./feeds/PitLaneTimeCollection.jsonStream"
+    },
+    {
+      "Name": "Position.z",
+      "FilePath": "./feeds/Position.z.jsonStream"
+    },
+    {
+      "Name": "RaceControlMessages",
+      "FilePath": "./feeds/RaceControlMessages.jsonStream"
+    },
+    {
+      "Name": "SessionData",
+      "FilePath": "./feeds/SessionData.jsonStream"
+    },
+    {
+      "Name": "SessionInfo",
+      "FilePath": "./feeds/SessionInfo.jsonStream"
+    },
+    {
+      "Name": "SessionStatus",
+      "FilePath": "./feeds/SessionStatus.jsonStream"
+    },
+    {
+      "Name": "SPFeed",
+      "FilePath": "./feeds/SPFeed.jsonStream"
+    },
+    {
+      "Name": "TeamRadio",
+      "FilePath": "./feeds/TeamRadio.jsonStream"
+    },
+    {
+      "Name": "TimingAppData",
+      "FilePath": "./feeds/TimingAppData.jsonStream"
+    },
+    {
+      "Name": "TimingData",
+      "FilePath": "./feeds/TimingData.jsonStream"
+    },
+    {
+      "Name": "TimingDataF1",
+      "FilePath": "./feeds/TimingDataF1.jsonStream"
+    },
+    {
+      "Name": "TimingStats",
+      "FilePath": "./feeds/TimingStats.jsonStream"
+    },
+    {
+      "Name": "TlaRcm",
+      "FilePath": "./feeds/TlaRcm.jsonStream"
+    },
+    {
+      "Name": "TopThree",
+      "FilePath": "./feeds/TopThree.jsonStream"
+    },
+    {
+      "Name": "TrackStatus",
+      "FilePath": "./feeds/TrackStatus.jsonStream"
+    },
+    {
+      "Name": "TyreStintSeries",
+      "FilePath": "./feeds/TyreStintSeries.jsonStream"
+    },
+    {
+      "Name": "WeatherData",
+      "FilePath": "./feeds/WeatherData.jsonStream"
+    },
+    {
+      "Name": "WeatherDataSeries",
+      "FilePath": "./feeds/WeatherDataSeries.jsonStream"
+    }
+  ]
+}

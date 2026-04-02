@@ -11,6 +11,19 @@ services:
       - "8080:8080"
     environment:
       ASPNETCORE_URLS: http://+:8080
+      Replay__DefaultConfigurationPath: /data/replay-config.generated.json
+      ReplayBootstrap__Enabled: "true"
+      ReplayBootstrap__DownloadOnStartup: "true"
+      ReplayBootstrap__AutoLoadOnStartup: "true"
+      ReplayBootstrap__AutoStartOnStartup: "false"
+      ReplayBootstrap__OverwriteExistingFiles: "true"
+      ReplayBootstrap__IndexUrl: https://livetiming.formula1.com/static/2021/2021-09-12_Italian_Grand_Prix/2021-09-12_Race/Index.json
+      ReplayBootstrap__StorageRootPath: /data
+      ReplayBootstrap__GeneratedReplayConfigurationFileName: replay-config.generated.json
+      ReplayBootstrap__IndexFileName: Index.json
+      ReplayBootstrap__SessionId: 2021-09-12-italian-grand-prix-race
+      ReplayBootstrap__MaxRetryAttempts: "20"
+      ReplayBootstrap__RetryDelaySeconds: "2"
       Mqtt__Enabled: "true"
       Mqtt__Host: mosquitto
       Mqtt__Port: "1883"
