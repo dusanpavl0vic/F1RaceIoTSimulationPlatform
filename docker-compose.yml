@@ -16,6 +16,21 @@ services:
       - ./docker/replay-data:/data
     restart: unless-stopped
 
+  event-normalizer-service:
+    build:
+      context: .
+      dockerfile: ./event-normalizer-service/Dockerfile
+    container_name: f1-event-normalizer-service
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+    restart: unless-stopped
+
   mosquitto:
     image: eclipse-mosquitto:2
     container_name: f1-mosquitto
@@ -42,10 +57,5 @@ services:
     volumes:
       - ./helpers/mqtt-capture/capture.sh:/helper/capture.sh:ro
       - ./docker/replay-data/mqtt-capture:/capture
-    environment:
-      CAPTURE_TOPIC_FILTER: f1/raw/#
-      CAPTURE_OUTPUT_DIR: /capture
     command: ["/bin/sh", "/helper/capture.sh"]
     restart: unless-stopped
-
-  
