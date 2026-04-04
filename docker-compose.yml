@@ -42,5 +42,10 @@ services:
     volumes:
       - ./helpers/mqtt-capture/capture.sh:/helper/capture.sh:ro
       - ./docker/replay-data/mqtt-capture:/capture
+    environment:
+      CAPTURE_TOPIC_FILTER: f1/raw/#
+      CAPTURE_OUTPUT_DIR: /capture
     command: ["/bin/sh", "/helper/capture.sh"]
     restart: unless-stopped
+
+  
