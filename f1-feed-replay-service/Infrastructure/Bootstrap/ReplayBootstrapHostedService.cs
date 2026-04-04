@@ -1,4 +1,5 @@
 using F1.FeedReplay.Service.Application.Contracts;
+using F1.FeedReplay.Service.Application.Models;
 
 namespace F1.FeedReplay.Service.Infrastructure.Bootstrap;
 
@@ -24,13 +25,28 @@ public sealed class ReplayBootstrapHostedService(
         var loadAfterDownload = _configuration.GetValue("ReplayBootstrap:AutoLoadOnStartup", false);
         var startAfterLoad = _configuration.GetValue("ReplayBootstrap:AutoStartOnStartup", false);
 
+        if (!downloadFeeds && !loadAfterDownload && !startAfterLoad)
+        {
+            _logger.LogInformation("Replay bootstrap is enabled, but no startup action is configured.");
+            return;
+        }
+
+        if (downloadFeeds && string.IsNullOrWhiteSpace(indexUrl))
+        {
+            _logger.LogWarning("Replay bootstrap is enabled, but no IndexUrl is configured. Startup bootstrap is skipped.");
+            return;
+        }
+
         var result = await _replayBootstrapper.BootstrapAsync(
-            string.Empty,
-            indexUrl,
-            downloadFeeds,
-            forceDownload,
-            loadAfterDownload,
-            startAfterLoad,
+            new ReplayBootstrapParameters(
+                indexUrl,
+                null,
+                _configuration["ReplayBootstrap:SessionId"],
+                null,
+                downloadFeeds,
+                forceDownload,
+                loadAfterDownload,
+                startAfterLoad),
             cancellationToken);
 
         _logger.LogInformation(

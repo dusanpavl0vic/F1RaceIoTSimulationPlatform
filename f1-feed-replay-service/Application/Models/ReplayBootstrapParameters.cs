@@ -1,10 +1,10 @@
-namespace F1.FeedReplay.Service.API.Contracts;
+namespace F1.FeedReplay.Service.Application.Models;
 
-public sealed record ReplayBootstrapRequest(
+public sealed record ReplayBootstrapParameters(
     string? IndexUrl,
     string? ConfigurationPath,
     string? SessionId,
-    string[]? FeedNames,
+    IReadOnlyCollection<string>? FeedNames,
     bool DownloadFeeds = true,
     bool ForceDownload = true,
     bool LoadAfterDownload = true,

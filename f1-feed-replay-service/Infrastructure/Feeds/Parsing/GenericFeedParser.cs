@@ -11,8 +11,6 @@ public class GenericFeedParser(FeedFileReader fileReader, ILogger<GenericFeedPar
     private readonly FeedFileReader _fileReader = fileReader;
     private readonly ILogger<GenericFeedParser> _logger = logger;
 
-    public virtual bool CanHandle(string feedName) => true;
-
     public virtual async Task<IReadOnlyList<ReplayEvent>> ParseAsync(
         ReplayConfiguration configuration,
         FeedDefinition feedDefinition,

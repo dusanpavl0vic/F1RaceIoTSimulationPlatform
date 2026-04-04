@@ -1,41 +1,76 @@
+using F1.FeedReplay.Service.Application.Contracts;
+using F1.FeedReplay.Service.Application.Services;
+using F1.FeedReplay.Service.Domain.Services;
+using F1.FeedReplay.Service.Infrastructure.Bootstrap;
+using F1.FeedReplay.Service.Infrastructure.Configuration;
+using F1.FeedReplay.Service.Infrastructure.Feeds.Parsing;
+using F1.FeedReplay.Service.Infrastructure.Mqtt;
+using F1.FeedReplay.Service.Infrastructure.Time;
+using F1.FeedReplay.Service.Infrastructure.Workers;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
+
+builder.Services.Configure<ReplayServiceOptions>(builder.Configuration.GetSection(ReplayServiceOptions.SectionName));
+builder.Services.Configure<ReplayBootstrapOptions>(builder.Configuration.GetSection(ReplayBootstrapOptions.SectionName));
+builder.Services.Configure<MqttOptions>(builder.Configuration.GetSection(MqttOptions.SectionName));
+
+builder.Services.AddHttpClient("ReplayBootstrap");
+
+builder.Services.AddSingleton<IReplayCoordinator, ReplayCoordinator>();
+builder.Services.AddSingleton<IReplayExecutionQueue, ReplayExecutionQueue>();
+builder.Services.AddSingleton<IReplayConfigurationLoader, ReplayConfigurationLoader>();
+builder.Services.AddSingleton<IReplayBootstrapper, ReplayBootstrapper>();
+builder.Services.AddSingleton<IFeedParser, GenericFeedParser>();
+builder.Services.AddSingleton<IEventTopicMapper, EventTopicMapper>();
+builder.Services.AddSingleton<IReplayTimeProvider, SystemReplayTimeProvider>();
+builder.Services.AddSingleton<VirtualClock>();
+builder.Services.AddSingleton<FeedFileReader>();
+builder.Services.AddSingleton<IRawEventPublisher, MqttPublisher>();
+
+builder.Services.AddHostedService<ReplaySchedulerBackgroundService>();
+builder.Services.AddHostedService<ReplayBootstrapHostedService>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+app.UseExceptionHandler(exceptionHandler =>
 {
-    app.MapOpenApi();
-}
+    exceptionHandler.Run(async context =>
+    {
+        var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("GlobalExceptionHandler");
+
+        if (exception is not null)
+        {
+            logger.LogError(exception, "Unhandled request failure.");
+        }
+
+        context.Response.StatusCode = exception switch
+        {
+            ArgumentException => StatusCodes.Status400BadRequest,
+            InvalidOperationException => StatusCodes.Status400BadRequest,
+            FileNotFoundException => StatusCodes.Status404NotFound,
+            _ => StatusCodes.Status500InternalServerError
+        };
+
+        var problem = new ProblemDetails
+        {
+            Status = context.Response.StatusCode,
+            Title = context.Response.StatusCode >= 500 ? "Internal server error." : "Request failed.",
+            Detail = exception?.Message
+        };
+
+        await context.Response.WriteAsJsonAsync(problem);
+    });
+});
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

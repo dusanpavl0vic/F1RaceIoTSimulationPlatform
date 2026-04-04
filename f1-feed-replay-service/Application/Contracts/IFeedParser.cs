@@ -4,7 +4,6 @@ namespace F1.FeedReplay.Service.Application.Contracts;
 
 public interface IFeedParser
 {
-    bool CanHandle(string feedName);
     Task<IReadOnlyList<ReplayEvent>> ParseAsync(
         ReplayConfiguration configuration,
         FeedDefinition feedDefinition,

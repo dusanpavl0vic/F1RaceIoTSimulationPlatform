@@ -1,8 +1,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
+COPY ./F1RaceIoTSimulationPlatform.sln ./
+COPY ./f1-shared/f1-shared.csproj ./f1-shared/
 COPY ./f1-feed-replay-service/f1-feed-replay-service.csproj ./f1-feed-replay-service/
-RUN dotnet restore ./f1-feed-replay-service/f1-feed-replay-service.csproj
+RUN dotnet restore ./F1RaceIoTSimulationPlatform.sln
 
 COPY . .
 RUN dotnet publish ./f1-feed-replay-service/f1-feed-replay-service.csproj -c Release -o /app/publish

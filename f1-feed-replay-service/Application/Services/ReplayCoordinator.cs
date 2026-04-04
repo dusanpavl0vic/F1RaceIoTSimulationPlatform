@@ -1,4 +1,3 @@
-using F1.FeedReplay.Service.Application.Commands;
 using F1.FeedReplay.Service.Application.Contracts;
 using F1.FeedReplay.Service.Application.Models;
 using F1.FeedReplay.Service.Domain.Models;
@@ -7,7 +6,7 @@ using F1.FeedReplay.Service.Domain.Services;
 namespace F1.FeedReplay.Service.Application.Services;
 
 public sealed class ReplayCoordinator(
-    IEnumerable<IFeedParser> feedParsers,
+    IFeedParser feedParser,
     IReplayConfigurationLoader configurationLoader,
     IReplayExecutionQueue executionQueue,
     VirtualClock virtualClock,
@@ -15,7 +14,7 @@ public sealed class ReplayCoordinator(
     ILogger<ReplayCoordinator> logger) : IReplayCoordinator
 {
     private readonly object _gate = new();
-    private readonly IEnumerable<IFeedParser> _feedParsers = feedParsers;
+    private readonly IFeedParser _feedParser = feedParser;
     private readonly IReplayConfigurationLoader _configurationLoader = configurationLoader;
     private readonly IReplayExecutionQueue _executionQueue = executionQueue;
     private readonly VirtualClock _virtualClock = virtualClock;
@@ -31,19 +30,16 @@ public sealed class ReplayCoordinator(
     private DateTimeOffset? _completedAt;
     private string? _lastError;
 
-    public async Task<ReplayStatusModel> LoadAsync(LoadReplayCommand command, CancellationToken cancellationToken)
+    public async Task<ReplayStatusModel> LoadAsync(string? configurationPath, CancellationToken cancellationToken)
     {
         EnsureNotRunning();
 
-        var configuration = await _configurationLoader.LoadAsync(command.ConfigurationPath, cancellationToken);
+        var configuration = await _configurationLoader.LoadAsync(configurationPath ?? string.Empty, cancellationToken);
         var parsedEvents = new List<ReplayEvent>();
 
         foreach (var indexedFeed in configuration.Feeds.Select((feed, index) => (feed, index)))
         {
-            var parser = _feedParsers.FirstOrDefault(candidate => candidate.CanHandle(indexedFeed.feed.Name))
-                ?? throw new InvalidOperationException($"No parser registered for feed '{indexedFeed.feed.Name}'.");
-
-            var events = await parser.ParseAsync(configuration, indexedFeed.feed, indexedFeed.index, cancellationToken);
+            var events = await _feedParser.ParseAsync(configuration, indexedFeed.feed, indexedFeed.index, cancellationToken);
             parsedEvents.AddRange(events);
         }
 
@@ -96,11 +92,11 @@ public sealed class ReplayCoordinator(
         return GetStatus();
     }
 
-    public async Task<ReplayStatusModel> StartAsync(StartReplayCommand command, CancellationToken cancellationToken)
+    public async Task<ReplayStatusModel> StartAsync(CancellationToken cancellationToken)
     {
         if (GetStatus().SessionId is null)
         {
-            await LoadAsync(new LoadReplayCommand(string.Empty), cancellationToken);
+            await LoadAsync(null, cancellationToken);
         }
 
         ReplaySession session;
@@ -151,7 +147,7 @@ public sealed class ReplayCoordinator(
         return GetStatus();
     }
 
-    public Task<ReplayStatusModel> PauseAsync(PauseReplayCommand command, CancellationToken cancellationToken)
+    public Task<ReplayStatusModel> PauseAsync(CancellationToken cancellationToken)
     {
         lock (_gate)
         {
@@ -168,7 +164,7 @@ public sealed class ReplayCoordinator(
         return Task.FromResult(GetStatus());
     }
 
-    public Task<ReplayStatusModel> ResumeAsync(ResumeReplayCommand command, CancellationToken cancellationToken)
+    public Task<ReplayStatusModel> ResumeAsync(CancellationToken cancellationToken)
     {
         lock (_gate)
         {
@@ -185,7 +181,7 @@ public sealed class ReplayCoordinator(
         return Task.FromResult(GetStatus());
     }
 
-    public Task<ReplayStatusModel> StopAsync(StopReplayCommand command, CancellationToken cancellationToken)
+    public Task<ReplayStatusModel> StopAsync(CancellationToken cancellationToken)
     {
         lock (_gate)
         {
@@ -207,18 +203,18 @@ public sealed class ReplayCoordinator(
         return Task.FromResult(GetStatus());
     }
 
-    public Task<ReplayStatusModel> ChangeReplaySpeedAsync(ChangeReplaySpeedCommand command, CancellationToken cancellationToken)
+    public Task<ReplayStatusModel> ChangeReplaySpeedAsync(double speed, CancellationToken cancellationToken)
     {
-        if (command.Speed <= 0)
+        if (speed <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(command.Speed), "Replay speed must be greater than zero.");
+            throw new ArgumentOutOfRangeException(nameof(speed), "Replay speed must be greater than zero.");
         }
 
         lock (_gate)
         {
-            _replaySpeed = command.Speed;
-            _virtualClock.ChangeSpeed(command.Speed);
-            _logger.LogInformation("Replay speed changed to x{ReplaySpeed}.", command.Speed);
+            _replaySpeed = speed;
+            _virtualClock.ChangeSpeed(speed);
+            _logger.LogInformation("Replay speed changed to x{ReplaySpeed}.", speed);
         }
 
         return Task.FromResult(GetStatus());

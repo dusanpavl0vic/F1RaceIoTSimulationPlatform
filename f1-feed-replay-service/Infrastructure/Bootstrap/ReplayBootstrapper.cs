@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using F1.FeedReplay.Service.Application.Commands;
 using F1.FeedReplay.Service.Application.Contracts;
 using F1.FeedReplay.Service.Application.Models;
 using F1.FeedReplay.Service.Domain.Models;
@@ -14,7 +13,6 @@ public sealed class ReplayBootstrapper(
     IWebHostEnvironment hostEnvironment,
     IOptions<ReplayBootstrapOptions> bootstrapOptions,
     IOptions<ReplayServiceOptions> replayServiceOptions,
-    IReplayConfigurationLoader replayConfigurationLoader,
     IReplayCoordinator replayCoordinator,
     ILogger<ReplayBootstrapper> logger) : IReplayBootstrapper
 {
@@ -28,83 +26,88 @@ public sealed class ReplayBootstrapper(
     private readonly IWebHostEnvironment _hostEnvironment = hostEnvironment;
     private readonly ReplayBootstrapOptions _bootstrapOptions = bootstrapOptions.Value;
     private readonly ReplayServiceOptions _replayServiceOptions = replayServiceOptions.Value;
-    private readonly IReplayConfigurationLoader _replayConfigurationLoader = replayConfigurationLoader;
     private readonly IReplayCoordinator _replayCoordinator = replayCoordinator;
     private readonly ILogger<ReplayBootstrapper> _logger = logger;
 
-    public async Task<ReplayBootstrapResult> BootstrapAsync(
-        string? configurationPath,
-        string? indexUrl,
-        bool downloadFeeds,
-        bool forceDownload,
-        bool loadAfterDownload,
-        bool startAfterLoad,
-        CancellationToken cancellationToken)
+    public async Task<ReplayBootstrapResult> BootstrapAsync(ReplayBootstrapParameters parameters, CancellationToken cancellationToken)
     {
         var storageRootPath = ResolveStorageRootPath();
         Directory.CreateDirectory(storageRootPath);
 
-        var resolvedConfigurationPath = ResolveConfigurationPath(configurationPath, storageRootPath);
-        var resolvedIndexUrl = ResolveIndexUrl(indexUrl);
+        var resolvedIndexUrl = ResolveIndexUrl(parameters.IndexUrl, parameters.DownloadFeeds);
+        var resolvedSessionId = ResolveSessionId(parameters.SessionId, resolvedIndexUrl);
+        var sessionStoragePath = Path.Combine(storageRootPath, resolvedSessionId);
+        Directory.CreateDirectory(sessionStoragePath);
+
+        var resolvedConfigurationPath = ResolveConfigurationPath(parameters.ConfigurationPath, sessionStoragePath);
         var downloadedFeeds = new List<string>();
         var skippedFeeds = new List<string>();
+        var configuredFeedCount = 0;
 
-        if (downloadFeeds)
+        if (parameters.DownloadFeeds)
         {
             var indexPayload = await DownloadIndexPayloadAsync(resolvedIndexUrl, cancellationToken);
-            var indexPath = Path.Combine(storageRootPath, _bootstrapOptions.IndexFileName);
+            var indexPath = Path.Combine(sessionStoragePath, _bootstrapOptions.IndexFileName);
             await File.WriteAllTextAsync(indexPath, indexPayload, cancellationToken);
 
             var indexDocument = JsonSerializer.Deserialize<IndexDocument>(indexPayload, SerializerOptions)
                 ?? throw new InvalidOperationException("Downloaded Index.json is empty or invalid.");
 
-            await GenerateReplayConfigurationAsync(indexDocument, resolvedIndexUrl, resolvedConfigurationPath, cancellationToken);
+            var selectedFeeds = SelectFeeds(indexDocument, parameters.FeedNames);
+            configuredFeedCount = selectedFeeds.Count;
 
-            foreach (var feed in indexDocument.Feeds
-                         .Where(entry => !string.IsNullOrWhiteSpace(entry.Value.StreamPath))
-                         .OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase))
+            await GenerateReplayConfigurationAsync(selectedFeeds, resolvedSessionId, resolvedConfigurationPath, cancellationToken);
+
+            foreach (var feed in selectedFeeds)
             {
                 var fileName = Path.GetFileName(feed.Value.StreamPath!);
-                var targetPath = Path.Combine(storageRootPath, "feeds", fileName);
+                var targetPath = Path.Combine(sessionStoragePath, "feeds", fileName);
 
-                if (File.Exists(targetPath) && !forceDownload)
+                if (File.Exists(targetPath) && !parameters.ForceDownload)
                 {
                     skippedFeeds.Add(feed.Key);
                     _logger.LogInformation("Skipping download for {FeedName}; file already exists at {TargetPath}.", feed.Key, targetPath);
                     continue;
                 }
 
-                Directory.CreateDirectory(Path.GetDirectoryName(targetPath) ?? storageRootPath);
+                Directory.CreateDirectory(Path.GetDirectoryName(targetPath) ?? sessionStoragePath);
                 var sourceUrl = new Uri(new Uri(resolvedIndexUrl), feed.Value.StreamPath!).ToString();
                 await DownloadFeedWithRetryAsync(feed.Key, sourceUrl, targetPath, cancellationToken);
                 downloadedFeeds.Add(feed.Key);
             }
         }
+        else
+        {
+            configuredFeedCount = await CountConfiguredFeedsAsync(resolvedConfigurationPath, cancellationToken);
+        }
 
         var loadedReplay = false;
         var startedReplay = false;
 
-        if (File.Exists(resolvedConfigurationPath) && loadAfterDownload)
+        if (File.Exists(resolvedConfigurationPath) && parameters.LoadAfterDownload)
         {
             var currentStatus = _replayCoordinator.GetStatus();
             if (currentStatus.State is ReplayRunState.Running or ReplayRunState.Paused)
             {
-                await _replayCoordinator.StopAsync(new StopReplayCommand(), cancellationToken);
+                await _replayCoordinator.StopAsync(cancellationToken);
             }
 
-            await _replayCoordinator.LoadAsync(new LoadReplayCommand(resolvedConfigurationPath), cancellationToken);
+            await _replayCoordinator.LoadAsync(resolvedConfigurationPath, cancellationToken);
             loadedReplay = true;
         }
 
-        if (startAfterLoad)
+        if (parameters.StartAfterLoad)
         {
-            await _replayCoordinator.StartAsync(new StartReplayCommand(), cancellationToken);
+            await _replayCoordinator.StartAsync(cancellationToken);
             startedReplay = true;
         }
 
         return new ReplayBootstrapResult(
+            resolvedSessionId,
+            sessionStoragePath,
             resolvedConfigurationPath,
             resolvedIndexUrl,
+            configuredFeedCount,
             downloadedFeeds.Count,
             skippedFeeds.Count,
             downloadedFeeds,
@@ -125,19 +128,17 @@ public sealed class ReplayBootstrapper(
     }
 
     private async Task GenerateReplayConfigurationAsync(
-        IndexDocument indexDocument,
-        string indexUrl,
+        IReadOnlyList<KeyValuePair<string, IndexFeedDocument>> selectedFeeds,
+        string sessionId,
         string configurationPath,
         CancellationToken cancellationToken)
     {
         var generatedConfiguration = new ReplayConfigurationDocument
         {
-            SessionId = ResolveSessionId(indexUrl),
+            SessionId = sessionId,
             ReplaySpeed = _bootstrapOptions.ReplaySpeed,
             StartOffsetMs = _bootstrapOptions.StartOffsetMs,
-            Feeds = indexDocument.Feeds
-                .Where(entry => !string.IsNullOrWhiteSpace(entry.Value.StreamPath))
-                .OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+            Feeds = selectedFeeds
                 .Select(entry => new FeedDocument
                 {
                     Name = entry.Key,
@@ -146,6 +147,7 @@ public sealed class ReplayBootstrapper(
                 .ToList()
         };
 
+        Directory.CreateDirectory(Path.GetDirectoryName(configurationPath) ?? _hostEnvironment.ContentRootPath);
         await using var stream = File.Create(configurationPath);
         await JsonSerializer.SerializeAsync(stream, generatedConfiguration, SerializerOptions, cancellationToken);
     }
@@ -199,10 +201,10 @@ public sealed class ReplayBootstrapper(
             ? _bootstrapOptions.StorageRootPath
             : Path.GetFullPath(Path.Combine(_hostEnvironment.ContentRootPath, _bootstrapOptions.StorageRootPath));
 
-    private string ResolveConfigurationPath(string? configurationPath, string storageRootPath)
+    private string ResolveConfigurationPath(string? configurationPath, string sessionStoragePath)
     {
         var candidate = string.IsNullOrWhiteSpace(configurationPath)
-            ? Path.Combine(storageRootPath, _bootstrapOptions.GeneratedReplayConfigurationFileName)
+            ? Path.Combine(sessionStoragePath, _bootstrapOptions.GeneratedReplayConfigurationFileName)
             : configurationPath;
 
         if (string.IsNullOrWhiteSpace(candidate))
@@ -220,25 +222,32 @@ public sealed class ReplayBootstrapper(
             : Path.GetFullPath(Path.Combine(_hostEnvironment.ContentRootPath, candidate));
     }
 
-    private string ResolveIndexUrl(string? indexUrl)
+    private string ResolveIndexUrl(string? indexUrl, bool requireValue)
     {
         var candidate = string.IsNullOrWhiteSpace(indexUrl)
             ? _bootstrapOptions.IndexUrl
             : indexUrl;
 
-        if (string.IsNullOrWhiteSpace(candidate))
+        if (requireValue && string.IsNullOrWhiteSpace(candidate))
         {
             throw new InvalidOperationException("Replay bootstrap requires an Index.json URL.");
         }
 
-        return candidate;
+        return candidate ?? string.Empty;
     }
 
-    private string ResolveSessionId(string indexUrl)
+    private string ResolveSessionId(string? requestedSessionId, string indexUrl)
     {
-        if (!string.IsNullOrWhiteSpace(_bootstrapOptions.SessionId))
+        if (!string.IsNullOrWhiteSpace(requestedSessionId))
         {
-            return _bootstrapOptions.SessionId;
+            return SanitizeSessionId(requestedSessionId);
+        }
+
+        if (string.IsNullOrWhiteSpace(indexUrl))
+        {
+            return !string.IsNullOrWhiteSpace(_bootstrapOptions.SessionId)
+                ? SanitizeSessionId(_bootstrapOptions.SessionId)
+                : "f1-live-timing-session";
         }
 
         var uri = new Uri(indexUrl);
@@ -250,6 +259,67 @@ public sealed class ReplayBootstrapper(
             .ToArray();
 
         return segments.Length == 0 ? "f1-live-timing-session" : string.Join('-', segments);
+    }
+
+    private static List<KeyValuePair<string, IndexFeedDocument>> SelectFeeds(
+        IndexDocument indexDocument,
+        IReadOnlyCollection<string>? requestedFeedNames)
+    {
+        var availableFeeds = indexDocument.Feeds
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.Value.StreamPath))
+            .OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (requestedFeedNames is null || requestedFeedNames.Count == 0)
+        {
+            return availableFeeds;
+        }
+
+        var requested = requestedFeedNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var selectedFeeds = availableFeeds
+            .Where(entry => requested.Contains(entry.Key))
+            .ToList();
+
+        if (selectedFeeds.Count == 0)
+        {
+            throw new InvalidOperationException("None of the requested feeds were found in the supplied Index.json.");
+        }
+
+        var missingFeeds = requested
+            .Where(requestedFeed => !availableFeeds.Any(entry => entry.Key.Equals(requestedFeed, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (missingFeeds.Length > 0)
+        {
+            throw new InvalidOperationException($"Requested feeds were not found: {string.Join(", ", missingFeeds)}.");
+        }
+
+        return selectedFeeds;
+    }
+
+    private static async Task<int> CountConfiguredFeedsAsync(string configurationPath, CancellationToken cancellationToken)
+    {
+        if (!File.Exists(configurationPath))
+        {
+            throw new FileNotFoundException("Replay configuration file was not found.", configurationPath);
+        }
+
+        await using var stream = File.OpenRead(configurationPath);
+        var configuration = await JsonSerializer.DeserializeAsync<ReplayConfigurationDocument>(stream, SerializerOptions, cancellationToken)
+            ?? throw new InvalidOperationException("Replay configuration file is empty or invalid.");
+
+        return configuration.Feeds.Count;
+    }
+
+    private static string SanitizeSessionId(string value)
+    {
+        var sanitized = SanitizeSegment(value);
+        return string.IsNullOrWhiteSpace(sanitized) ? "f1-live-timing-session" : sanitized;
     }
 
     private static string SanitizeSegment(string value)

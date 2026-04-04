@@ -1,6 +1,27 @@
-@f1_feed_replay_service_HostAddress = http://localhost:5104
+@f1_feed_replay_service_HostAddress = http://localhost:8080
 
-GET {{f1_feed_replay_service_HostAddress}}/weatherforecast/
+GET {{f1_feed_replay_service_HostAddress}}/health
 Accept: application/json
+
+###
+
+POST {{f1_feed_replay_service_HostAddress}}/api/replay/bootstrap
+Content-Type: application/json
+
+{
+  "indexUrl": "https://livetiming.formula1.com/static/2021/2021-09-12_Italian_Grand_Prix/2021-09-12_Race/Index.json",
+  "feedNames": ["TimingData", "TrackStatus", "WeatherData"],
+  "downloadFeeds": true,
+  "forceDownload": false,
+  "loadAfterDownload": true,
+  "startAfterLoad": false
+}
+
+###
+
+POST {{f1_feed_replay_service_HostAddress}}/api/replay/start
+Content-Type: application/json
+
+{}
 
 ###
