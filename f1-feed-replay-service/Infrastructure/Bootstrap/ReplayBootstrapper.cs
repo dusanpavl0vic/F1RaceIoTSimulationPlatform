@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using F1.FeedReplay.Service.Application.Commands;
 using F1.FeedReplay.Service.Application.Contracts;
 using F1.FeedReplay.Service.Application.Models;
 using F1.FeedReplay.Service.Domain.Models;
@@ -29,41 +30,43 @@ public sealed class ReplayBootstrapper(
     private readonly IReplayCoordinator _replayCoordinator = replayCoordinator;
     private readonly ILogger<ReplayBootstrapper> _logger = logger;
 
-    public async Task<ReplayBootstrapResult> BootstrapAsync(ReplayBootstrapParameters parameters, CancellationToken cancellationToken)
+    public async Task<ReplayBootstrapResult> BootstrapAsync(BootstrapReplayCommand command, CancellationToken cancellationToken)
     {
         var storageRootPath = ResolveStorageRootPath();
         Directory.CreateDirectory(storageRootPath);
 
-        var resolvedIndexUrl = ResolveIndexUrl(parameters.IndexUrl, parameters.DownloadFeeds);
-        var resolvedSessionId = ResolveSessionId(parameters.SessionId, resolvedIndexUrl);
+        var resolvedIndexUrl = ResolveIndexUrl(command.IndexUrl, command.DownloadFeeds);
+        var resolvedSessionId = ResolveSessionId(command.SessionId, resolvedIndexUrl);
         var sessionStoragePath = Path.Combine(storageRootPath, resolvedSessionId);
         Directory.CreateDirectory(sessionStoragePath);
 
-        var resolvedConfigurationPath = ResolveConfigurationPath(parameters.ConfigurationPath, sessionStoragePath);
+        var resolvedConfigurationPath = ResolveConfigurationPath(command.ConfigurationPath, sessionStoragePath);
         var downloadedFeeds = new List<string>();
         var skippedFeeds = new List<string>();
         var configuredFeedCount = 0;
 
-        if (parameters.DownloadFeeds)
+        if (command.DownloadFeeds)
         {
             var indexPayload = await DownloadIndexPayloadAsync(resolvedIndexUrl, cancellationToken);
             var indexPath = Path.Combine(sessionStoragePath, _bootstrapOptions.IndexFileName);
             await File.WriteAllTextAsync(indexPath, indexPayload, cancellationToken);
+            await WriteLatestIndexSnapshotAsync(storageRootPath, indexPayload, cancellationToken);
 
             var indexDocument = JsonSerializer.Deserialize<IndexDocument>(indexPayload, SerializerOptions)
                 ?? throw new InvalidOperationException("Downloaded Index.json is empty or invalid.");
 
-            var selectedFeeds = SelectFeeds(indexDocument, parameters.FeedNames);
+            var selectedFeeds = SelectFeeds(indexDocument, command.FeedNames);
             configuredFeedCount = selectedFeeds.Count;
 
             await GenerateReplayConfigurationAsync(selectedFeeds, resolvedSessionId, resolvedConfigurationPath, cancellationToken);
+            await WriteLatestConfigurationSnapshotAsync(storageRootPath, resolvedConfigurationPath, cancellationToken);
 
             foreach (var feed in selectedFeeds)
             {
                 var fileName = Path.GetFileName(feed.Value.StreamPath!);
                 var targetPath = Path.Combine(sessionStoragePath, "feeds", fileName);
 
-                if (File.Exists(targetPath) && !parameters.ForceDownload)
+                if (File.Exists(targetPath) && !command.ForceDownload)
                 {
                     skippedFeeds.Add(feed.Key);
                     _logger.LogInformation("Skipping download for {FeedName}; file already exists at {TargetPath}.", feed.Key, targetPath);
@@ -84,21 +87,21 @@ public sealed class ReplayBootstrapper(
         var loadedReplay = false;
         var startedReplay = false;
 
-        if (File.Exists(resolvedConfigurationPath) && parameters.LoadAfterDownload)
+        if (File.Exists(resolvedConfigurationPath) && command.LoadAfterDownload)
         {
             var currentStatus = _replayCoordinator.GetStatus();
             if (currentStatus.State is ReplayRunState.Running or ReplayRunState.Paused)
             {
-                await _replayCoordinator.StopAsync(cancellationToken);
+                await _replayCoordinator.StopAsync(new StopReplayCommand(), cancellationToken);
             }
 
-            await _replayCoordinator.LoadAsync(resolvedConfigurationPath, cancellationToken);
+            await _replayCoordinator.LoadAsync(new LoadReplayCommand(resolvedConfigurationPath), cancellationToken);
             loadedReplay = true;
         }
 
-        if (parameters.StartAfterLoad)
+        if (command.StartAfterLoad)
         {
-            await _replayCoordinator.StartAsync(cancellationToken);
+            await _replayCoordinator.StartAsync(new StartReplayCommand(), cancellationToken);
             startedReplay = true;
         }
 
@@ -150,6 +153,21 @@ public sealed class ReplayBootstrapper(
         Directory.CreateDirectory(Path.GetDirectoryName(configurationPath) ?? _hostEnvironment.ContentRootPath);
         await using var stream = File.Create(configurationPath);
         await JsonSerializer.SerializeAsync(stream, generatedConfiguration, SerializerOptions, cancellationToken);
+    }
+
+    private async Task WriteLatestIndexSnapshotAsync(string storageRootPath, string indexPayload, CancellationToken cancellationToken)
+    {
+        var latestIndexPath = Path.Combine(storageRootPath, _bootstrapOptions.IndexFileName);
+        await File.WriteAllTextAsync(latestIndexPath, indexPayload, cancellationToken);
+    }
+
+    private async Task WriteLatestConfigurationSnapshotAsync(string storageRootPath, string sourceConfigurationPath, CancellationToken cancellationToken)
+    {
+        var latestConfigurationPath = Path.Combine(storageRootPath, _bootstrapOptions.GeneratedReplayConfigurationFileName);
+
+        await using var source = File.OpenRead(sourceConfigurationPath);
+        await using var destination = File.Create(latestConfigurationPath);
+        await source.CopyToAsync(destination, cancellationToken);
     }
 
     private async Task DownloadFeedWithRetryAsync(string feedName, string sourceUrl, string targetPath, CancellationToken cancellationToken)

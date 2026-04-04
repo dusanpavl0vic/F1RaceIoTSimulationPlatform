@@ -58,10 +58,7 @@ public sealed class MqttPublisher : IRawEventPublisher, IAsyncDisposable
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            await EnsureConnectedAsync(cancellationToken);
-            var packet = BuildPublishPacket(topic, payload);
-            await _stream!.WriteAsync(packet, cancellationToken);
-            await _stream.FlushAsync(cancellationToken);
+            await PublishWithReconnectAsync(topic, payload, cancellationToken);
 
             if (_options.LogPayloads)
             {
@@ -81,6 +78,28 @@ public sealed class MqttPublisher : IRawEventPublisher, IAsyncDisposable
         {
             _gate.Release();
         }
+    }
+
+    private async Task PublishWithReconnectAsync(string topic, byte[] payload, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await WritePublishPacketAsync(topic, payload, cancellationToken);
+        }
+        catch (Exception exception) when (IsTransientConnectionFailure(exception))
+        {
+            _logger.LogWarning(exception, "MQTT publish failed for topic {Topic}. Resetting connection and retrying once.", topic);
+            ResetConnection();
+            await WritePublishPacketAsync(topic, payload, cancellationToken);
+        }
+    }
+
+    private async Task WritePublishPacketAsync(string topic, byte[] payload, CancellationToken cancellationToken)
+    {
+        await EnsureConnectedAsync(cancellationToken);
+        var packet = BuildPublishPacket(topic, payload);
+        await _stream!.WriteAsync(packet, cancellationToken);
+        await _stream.FlushAsync(cancellationToken);
     }
 
     public async ValueTask DisposeAsync()
@@ -228,4 +247,8 @@ public sealed class MqttPublisher : IRawEventPublisher, IAsyncDisposable
         _stream = null;
         _client = null;
     }
+
+    private static bool IsTransientConnectionFailure(Exception exception)
+        => exception is IOException or SocketException
+           || exception.InnerException is IOException or SocketException;
 }

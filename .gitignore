@@ -56,3 +56,5 @@ nunit-*.xml
 
 *.txt
 *.csv
+
+docker/

@@ -1,5 +1,5 @@
+using F1.FeedReplay.Service.Application.Commands;
 using F1.FeedReplay.Service.Application.Contracts;
-using F1.FeedReplay.Service.Application.Models;
 
 namespace F1.FeedReplay.Service.Infrastructure.Bootstrap;
 
@@ -38,7 +38,7 @@ public sealed class ReplayBootstrapHostedService(
         }
 
         var result = await _replayBootstrapper.BootstrapAsync(
-            new ReplayBootstrapParameters(
+            new BootstrapReplayCommand(
                 indexUrl,
                 null,
                 _configuration["ReplayBootstrap:SessionId"],

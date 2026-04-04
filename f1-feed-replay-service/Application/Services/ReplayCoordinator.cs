@@ -1,3 +1,4 @@
+using F1.FeedReplay.Service.Application.Commands;
 using F1.FeedReplay.Service.Application.Contracts;
 using F1.FeedReplay.Service.Application.Models;
 using F1.FeedReplay.Service.Domain.Models;
@@ -30,11 +31,11 @@ public sealed class ReplayCoordinator(
     private DateTimeOffset? _completedAt;
     private string? _lastError;
 
-    public async Task<ReplayStatusModel> LoadAsync(string? configurationPath, CancellationToken cancellationToken)
+    public async Task<ReplayStatusModel> LoadAsync(LoadReplayCommand command, CancellationToken cancellationToken)
     {
         EnsureNotRunning();
 
-        var configuration = await _configurationLoader.LoadAsync(configurationPath ?? string.Empty, cancellationToken);
+        var configuration = await _configurationLoader.LoadAsync(command.ConfigurationPath ?? string.Empty, cancellationToken);
         var parsedEvents = new List<ReplayEvent>();
 
         foreach (var indexedFeed in configuration.Feeds.Select((feed, index) => (feed, index)))
@@ -92,11 +93,11 @@ public sealed class ReplayCoordinator(
         return GetStatus();
     }
 
-    public async Task<ReplayStatusModel> StartAsync(CancellationToken cancellationToken)
+    public async Task<ReplayStatusModel> StartAsync(StartReplayCommand command, CancellationToken cancellationToken)
     {
         if (GetStatus().SessionId is null)
         {
-            await LoadAsync(null, cancellationToken);
+            await LoadAsync(new LoadReplayCommand(null), cancellationToken);
         }
 
         ReplaySession session;
@@ -147,7 +148,7 @@ public sealed class ReplayCoordinator(
         return GetStatus();
     }
 
-    public Task<ReplayStatusModel> PauseAsync(CancellationToken cancellationToken)
+    public Task<ReplayStatusModel> PauseAsync(PauseReplayCommand command, CancellationToken cancellationToken)
     {
         lock (_gate)
         {
@@ -164,7 +165,7 @@ public sealed class ReplayCoordinator(
         return Task.FromResult(GetStatus());
     }
 
-    public Task<ReplayStatusModel> ResumeAsync(CancellationToken cancellationToken)
+    public Task<ReplayStatusModel> ResumeAsync(ResumeReplayCommand command, CancellationToken cancellationToken)
     {
         lock (_gate)
         {
@@ -181,7 +182,7 @@ public sealed class ReplayCoordinator(
         return Task.FromResult(GetStatus());
     }
 
-    public Task<ReplayStatusModel> StopAsync(CancellationToken cancellationToken)
+    public Task<ReplayStatusModel> StopAsync(StopReplayCommand command, CancellationToken cancellationToken)
     {
         lock (_gate)
         {
@@ -203,18 +204,18 @@ public sealed class ReplayCoordinator(
         return Task.FromResult(GetStatus());
     }
 
-    public Task<ReplayStatusModel> ChangeReplaySpeedAsync(double speed, CancellationToken cancellationToken)
+    public Task<ReplayStatusModel> ChangeReplaySpeedAsync(ChangeReplaySpeedCommand command, CancellationToken cancellationToken)
     {
-        if (speed <= 0)
+        if (command.Speed <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(speed), "Replay speed must be greater than zero.");
+            throw new ArgumentOutOfRangeException(nameof(command.Speed), "Replay speed must be greater than zero.");
         }
 
         lock (_gate)
         {
-            _replaySpeed = speed;
-            _virtualClock.ChangeSpeed(speed);
-            _logger.LogInformation("Replay speed changed to x{ReplaySpeed}.", speed);
+            _replaySpeed = command.Speed;
+            _virtualClock.ChangeSpeed(command.Speed);
+            _logger.LogInformation("Replay speed changed to x{ReplaySpeed}.", command.Speed);
         }
 
         return Task.FromResult(GetStatus());
