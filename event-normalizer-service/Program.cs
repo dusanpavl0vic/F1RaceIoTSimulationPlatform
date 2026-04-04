@@ -17,6 +17,7 @@ builder.Services.Configure<MqttOptions>(builder.Configuration.GetSection(MqttOpt
 
 builder.Services.AddSingleton<ICanonicalEventFactory, CanonicalEventFactory>();
 builder.Services.AddSingleton<ICanonicalTopicMapper, CanonicalTopicMapper>();
+builder.Services.AddSingleton<IPositionCoordinateResolver, PositionCoordinateResolver>();
 builder.Services.AddSingleton<IRawReplayEventSubscriber, RawReplayEventSubscriber>();
 builder.Services.AddSingleton<ICanonicalEventPublisher, CanonicalEventPublisher>();
 builder.Services.AddSingleton<NormalizerStatusStore>();

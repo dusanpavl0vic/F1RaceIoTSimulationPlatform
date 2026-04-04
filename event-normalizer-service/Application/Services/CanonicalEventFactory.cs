@@ -3,12 +3,15 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json.Nodes;
 using F1.EventNormalizer.Service.Application.Contracts;
+using F1.EventNormalizer.Service.Application.Models;
 using F1.Shared.Models;
 
 namespace F1.EventNormalizer.Service.Application.Services;
 
-public sealed class CanonicalEventFactory : ICanonicalEventFactory
+public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCoordinateResolver) : ICanonicalEventFactory
 {
+    private readonly IPositionCoordinateResolver _positionCoordinateResolver = positionCoordinateResolver;
+
     public IReadOnlyList<CanonicalEvent> Create(RawReplayEvent rawEvent)
     {
         var rawData = rawEvent.Payload["rawData"];
@@ -250,6 +253,7 @@ public sealed class CanonicalEventFactory : ICanonicalEventFactory
                     continue;
                 }
 
+                var resolvedCoordinates = ResolvePositionCoordinates(rawEvent, driverNumber.Value, position);
                 events.Add(BuildCanonicalEvent(
                     rawEvent,
                     "car.position.updated",
@@ -261,9 +265,14 @@ public sealed class CanonicalEventFactory : ICanonicalEventFactory
                         {
                             ["timestamp"] = timestamp,
                             ["status"] = position["Status"]?.ToString(),
-                            ["x"] = position["X"]?.DeepClone(),
-                            ["y"] = position["Y"]?.DeepClone(),
-                            ["z"] = position["Z"]?.DeepClone()
+                            ["x"] = resolvedCoordinates.X,
+                            ["y"] = resolvedCoordinates.Y,
+                            ["z"] = resolvedCoordinates.Z,
+                            ["rawX"] = resolvedCoordinates.RawX,
+                            ["rawY"] = resolvedCoordinates.RawY,
+                            ["rawZ"] = resolvedCoordinates.RawZ,
+                            ["hasRawCoordinates"] = resolvedCoordinates.HasRawCoordinates,
+                            ["isEstimated"] = resolvedCoordinates.IsEstimated
                         }
                     },
                     eventTimeOverride: eventTime,
@@ -306,6 +315,13 @@ public sealed class CanonicalEventFactory : ICanonicalEventFactory
                 }
 
                 var channels = car["Channels"] as JsonObject;
+                var rpm = TryGetInteger(channels?["0"]);
+                var speed = TryGetInteger(channels?["2"]);
+                var gear = TryGetInteger(channels?["3"]);
+                var rawThrottle = TryGetInteger(channels?["4"]);
+                var rawBrake = TryGetInteger(channels?["5"]);
+                var drs = TryGetInteger(channels?["45"]);
+
                 events.Add(BuildCanonicalEvent(
                     rawEvent,
                     "car.telemetry.updated",
@@ -316,12 +332,19 @@ public sealed class CanonicalEventFactory : ICanonicalEventFactory
                         ["telemetry"] = new JsonObject
                         {
                             ["utc"] = utc,
-                            ["rpm"] = channels?["0"]?.DeepClone(),
-                            ["speed"] = channels?["2"]?.DeepClone(),
-                            ["gear"] = channels?["3"]?.DeepClone(),
-                            ["throttle"] = channels?["4"]?.DeepClone(),
-                            ["brake"] = channels?["5"]?.DeepClone(),
-                            ["drs"] = channels?["45"]?.DeepClone(),
+                            ["rpm"] = rpm,
+                            ["speed"] = speed,
+                            ["speedKph"] = speed,
+                            ["gear"] = gear,
+                            ["throttle"] = NormalizeThrottle(rawThrottle),
+                            ["throttlePct"] = NormalizeThrottle(rawThrottle),
+                            ["rawThrottle"] = rawThrottle,
+                            ["brake"] = NormalizeBrake(rawBrake),
+                            ["brakeApplied"] = NormalizeBrake(rawBrake),
+                            ["rawBrake"] = rawBrake,
+                            ["drs"] = drs,
+                            ["drsEnabled"] = IsDrsEnabled(drs),
+                            ["drsAvailable"] = IsDrsAvailable(drs),
                             ["channels"] = channels?.DeepClone()
                         }
                     },
@@ -431,4 +454,49 @@ public sealed class CanonicalEventFactory : ICanonicalEventFactory
 
         return builder.ToString();
     }
+
+    private ResolvedPositionCoordinates ResolvePositionCoordinates(RawReplayEvent rawEvent, int driverNumber, JsonObject position)
+        => _positionCoordinateResolver.Resolve(
+            rawEvent.SessionId,
+            driverNumber,
+            TryGetInteger(position["X"]),
+            TryGetInteger(position["Y"]),
+            TryGetInteger(position["Z"]));
+
+    private static int? TryGetInteger(JsonNode? node)
+    {
+        if (node is null)
+        {
+            return null;
+        }
+
+        if (node is JsonValue jsonValue && jsonValue.TryGetValue<int>(out var asInt))
+        {
+            return asInt;
+        }
+
+        return int.TryParse(node.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static int? NormalizeThrottle(int? rawThrottle)
+    {
+        if (rawThrottle is null)
+        {
+            return null;
+        }
+
+        var normalized = (int)Math.Round(rawThrottle.Value / 104d * 100d, MidpointRounding.AwayFromZero);
+        return Math.Clamp(normalized, 0, 100);
+    }
+
+    private static bool? NormalizeBrake(int? rawBrake)
+        => rawBrake is null ? null : rawBrake.Value > 0;
+
+    private static bool? IsDrsEnabled(int? drs)
+        => drs is null ? null : drs.Value is 10 or 12 or 14;
+
+    private static bool? IsDrsAvailable(int? drs)
+        => drs is null ? null : drs.Value is 8 or 10 or 12 or 14;
 }
