@@ -7,5 +7,6 @@ public sealed class StatePersistenceOptions
     public bool Enabled { get; set; } = true;
     public bool AutoRestoreOnStartup { get; set; } = true;
     public string StorageDirectory { get; set; } = "./runtime-data";
-    public string SnapshotFileName { get; set; } = "current-race-state.json";
+    public string CheckpointFileName { get; set; } = "current-race-state.checkpoint.json";
+    public string CurrentStateFileName { get; set; } = "current-race-state.json";
 }

@@ -20,16 +20,12 @@ public sealed class StatePersistenceService(IOptions<StatePersistenceOptions> op
             return;
         }
 
-        var path = ResolveSnapshotPath();
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var checkpointPath = ResolveCheckpointPath();
+        var currentStatePath = ResolveCurrentStatePath();
+        Directory.CreateDirectory(Path.GetDirectoryName(checkpointPath)!);
 
-        var tempPath = $"{path}.tmp";
-        await using (var stream = File.Create(tempPath))
-        {
-            await JsonSerializer.SerializeAsync(stream, checkpoint, SerializerOptions, cancellationToken);
-        }
-
-        File.Move(tempPath, path, true);
+        await WriteJsonAtomicallyAsync(checkpointPath, checkpoint, cancellationToken);
+        await WriteJsonAtomicallyAsync(currentStatePath, checkpoint.Snapshot, cancellationToken);
     }
 
     public async Task<RaceStateCheckpoint?> LoadAsync(CancellationToken cancellationToken)
@@ -39,7 +35,7 @@ public sealed class StatePersistenceService(IOptions<StatePersistenceOptions> op
             return null;
         }
 
-        var path = ResolveSnapshotPath();
+        var path = ResolveCheckpointPath();
         if (!File.Exists(path))
         {
             return null;
@@ -49,12 +45,32 @@ public sealed class StatePersistenceService(IOptions<StatePersistenceOptions> op
         return await JsonSerializer.DeserializeAsync<RaceStateCheckpoint>(stream, SerializerOptions, cancellationToken);
     }
 
-    public string ResolveSnapshotPath()
+    public string ResolveCheckpointPath()
     {
         var storageDirectory = Path.IsPathRooted(_options.StorageDirectory)
             ? _options.StorageDirectory
             : Path.GetFullPath(_options.StorageDirectory);
 
-        return Path.Combine(storageDirectory, _options.SnapshotFileName);
+        return Path.Combine(storageDirectory, _options.CheckpointFileName);
+    }
+
+    public string ResolveCurrentStatePath()
+    {
+        var storageDirectory = Path.IsPathRooted(_options.StorageDirectory)
+            ? _options.StorageDirectory
+            : Path.GetFullPath(_options.StorageDirectory);
+
+        return Path.Combine(storageDirectory, _options.CurrentStateFileName);
+    }
+
+    private static async Task WriteJsonAtomicallyAsync<T>(string path, T value, CancellationToken cancellationToken)
+    {
+        var tempPath = $"{path}.tmp";
+        await using (var stream = File.Create(tempPath))
+        {
+            await JsonSerializer.SerializeAsync(stream, value, SerializerOptions, cancellationToken);
+        }
+
+        File.Move(tempPath, path, true);
     }
 }

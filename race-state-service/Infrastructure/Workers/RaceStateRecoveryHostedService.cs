@@ -23,7 +23,7 @@ public sealed class RaceStateRecoveryHostedService(
         var checkpoint = await _persistenceService.LoadAsync(stoppingToken);
         if (checkpoint is null)
         {
-            _logger.LogInformation("No persisted race state checkpoint found at {CheckpointPath}.", _persistenceService.ResolveSnapshotPath());
+            _logger.LogInformation("No persisted race state checkpoint found at {CheckpointPath}.", _persistenceService.ResolveCheckpointPath());
             return;
         }
 
