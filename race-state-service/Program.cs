@@ -11,11 +11,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 
+builder.Services.Configure<MqttOptions>(builder.Configuration.GetSection(MqttOptions.SectionName));
 builder.Services.Configure<StatePersistenceOptions>(builder.Configuration.GetSection(StatePersistenceOptions.SectionName));
 
 builder.Services.AddSingleton<IRaceStateStore, RaceStateStore>();
 builder.Services.AddSingleton<StatePersistenceService>();
+builder.Services.AddSingleton<RaceStateWorker>();
 builder.Services.AddHostedService<RaceStateRecoveryHostedService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<RaceStateWorker>());
 
 var app = builder.Build();
 
