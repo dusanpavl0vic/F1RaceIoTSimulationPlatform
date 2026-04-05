@@ -1,0 +1,56 @@
+using F1.RaceState.Service.Application.Contracts;
+using F1.RaceState.Service.Application.Services;
+using F1.RaceState.Service.Infrastructure.Configuration;
+using F1.RaceState.Service.Infrastructure.Persistence;
+using F1.RaceState.Service.Infrastructure.Workers;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
+
+builder.Services.Configure<StatePersistenceOptions>(builder.Configuration.GetSection(StatePersistenceOptions.SectionName));
+
+builder.Services.AddSingleton<IRaceStateStore, RaceStateStore>();
+builder.Services.AddSingleton<StatePersistenceService>();
+builder.Services.AddHostedService<RaceStateRecoveryHostedService>();
+
+var app = builder.Build();
+
+app.UseExceptionHandler(exceptionHandler =>
+{
+    exceptionHandler.Run(async context =>
+    {
+        var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("GlobalExceptionHandler");
+
+        if (exception is not null)
+        {
+            logger.LogError(exception, "Unhandled request failure.");
+        }
+
+        context.Response.StatusCode = exception switch
+        {
+            ArgumentException => StatusCodes.Status400BadRequest,
+            InvalidOperationException => StatusCodes.Status400BadRequest,
+            FileNotFoundException => StatusCodes.Status404NotFound,
+            _ => StatusCodes.Status500InternalServerError
+        };
+
+        var problem = new ProblemDetails
+        {
+            Status = context.Response.StatusCode,
+            Title = context.Response.StatusCode >= 500 ? "Internal server error." : "Request failed.",
+            Detail = exception?.Message
+        };
+
+        await context.Response.WriteAsJsonAsync(problem);
+    });
+});
+
+app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+app.Run();

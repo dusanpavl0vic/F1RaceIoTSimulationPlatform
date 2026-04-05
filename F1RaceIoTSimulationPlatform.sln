@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "f1-feed-replay-service", "f
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "event-normalizer-service", "event-normalizer-service\event-normalizer-service.csproj", "{2B9772C1-6546-49E9-A2FF-AD9D094F09FC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "race-state-service", "race-state-service\race-state-service.csproj", "{A0169149-9748-403B-852A-6DCA31016688}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,6 +57,18 @@ Global
 		{2B9772C1-6546-49E9-A2FF-AD9D094F09FC}.Release|x64.Build.0 = Release|Any CPU
 		{2B9772C1-6546-49E9-A2FF-AD9D094F09FC}.Release|x86.ActiveCfg = Release|Any CPU
 		{2B9772C1-6546-49E9-A2FF-AD9D094F09FC}.Release|x86.Build.0 = Release|Any CPU
+		{A0169149-9748-403B-852A-6DCA31016688}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0169149-9748-403B-852A-6DCA31016688}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0169149-9748-403B-852A-6DCA31016688}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A0169149-9748-403B-852A-6DCA31016688}.Debug|x64.Build.0 = Debug|Any CPU
+		{A0169149-9748-403B-852A-6DCA31016688}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A0169149-9748-403B-852A-6DCA31016688}.Debug|x86.Build.0 = Debug|Any CPU
+		{A0169149-9748-403B-852A-6DCA31016688}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0169149-9748-403B-852A-6DCA31016688}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0169149-9748-403B-852A-6DCA31016688}.Release|x64.ActiveCfg = Release|Any CPU
+		{A0169149-9748-403B-852A-6DCA31016688}.Release|x64.Build.0 = Release|Any CPU
+		{A0169149-9748-403B-852A-6DCA31016688}.Release|x86.ActiveCfg = Release|Any CPU
+		{A0169149-9748-403B-852A-6DCA31016688}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
