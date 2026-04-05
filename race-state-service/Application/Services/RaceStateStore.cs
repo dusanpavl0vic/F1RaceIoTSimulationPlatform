@@ -20,14 +20,14 @@ public sealed class RaceStateStore : IRaceStateStore
             var stateKey = ResolveStateKey(canonicalEvent);
             if (stateKey is null)
             {
-                return new RaceStateApplyResult(CloneSnapshot(_snapshot), false, "Event type does not mutate the current race state.");
+                return new RaceStateApplyResult(CloneSnapshot(_snapshot), false, "Event type does not mutate the current race state.", null);
             }
 
             var candidateVersion = new AppliedEventVersion(canonicalEvent.EventTime, canonicalEvent.Sequence);
             if (_lastAppliedEventVersions.TryGetValue(stateKey, out var currentVersion)
                 && candidateVersion.CompareTo(currentVersion) <= 0)
             {
-                return new RaceStateApplyResult(CloneSnapshot(_snapshot), false, $"Stale event ignored for key '{stateKey}'.");
+                return new RaceStateApplyResult(CloneSnapshot(_snapshot), false, $"Stale event ignored for key '{stateKey}'.", stateKey);
             }
 
             _snapshot.UpdatedAt = DateTimeOffset.UtcNow;
@@ -55,11 +55,11 @@ public sealed class RaceStateStore : IRaceStateStore
 
             if (!applied)
             {
-                return new RaceStateApplyResult(CloneSnapshot(_snapshot), false, "Event type is unsupported for race state mutation.");
+                return new RaceStateApplyResult(CloneSnapshot(_snapshot), false, "Event type is unsupported for race state mutation.", stateKey);
             }
 
             _lastAppliedEventVersions[stateKey] = candidateVersion;
-            return new RaceStateApplyResult(CloneSnapshot(_snapshot), true, null);
+            return new RaceStateApplyResult(CloneSnapshot(_snapshot), true, null, stateKey);
         }
     }
 

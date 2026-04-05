@@ -5,4 +5,5 @@ namespace F1.RaceState.Service.Application.Models;
 public sealed record RaceStateApplyResult(
     RaceStateSnapshot Snapshot,
     bool Applied,
-    string? Reason);
+    string? Reason,
+    string? StateKey);

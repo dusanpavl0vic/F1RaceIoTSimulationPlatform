@@ -1,11 +1,12 @@
 using F1.RaceState.Service.Application.Contracts;
+using F1.RaceState.Service.Application.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace F1.RaceState.Service.API.Controllers;
 
 [ApiController]
 [Route("api/race-state")]
-public sealed class RaceStateController(IRaceStateStore raceStateStore) : ControllerBase
+public sealed class RaceStateController(IRaceStateStore raceStateStore, RaceStateViewFactory viewFactory) : ControllerBase
 {
     [HttpGet("current")]
     public IActionResult GetCurrent() => Ok(raceStateStore.GetSnapshot());
@@ -23,5 +24,50 @@ public sealed class RaceStateController(IRaceStateStore raceStateStore) : Contro
             DriverCount = checkpoint.Snapshot.Drivers.Count,
             VersionKeyCount = checkpoint.LastAppliedEventVersions.Count
         });
+    }
+
+    [HttpGet("drivers")]
+    public IActionResult GetDrivers()
+    {
+        var snapshot = raceStateStore.GetSnapshot();
+        var orderedDrivers = snapshot.Drivers.Values
+            .OrderBy(driver => driver.Position ?? int.MaxValue)
+            .ThenBy(driver => driver.Line ?? int.MaxValue)
+            .ThenBy(driver => driver.DriverNumber);
+        return Ok(orderedDrivers);
+    }
+
+    [HttpGet("leaderboard")]
+    public IActionResult GetLeaderboard()
+    {
+        var snapshot = raceStateStore.GetSnapshot();
+        return Ok(new
+        {
+            snapshot.SessionId,
+            snapshot.CurrentLap,
+            snapshot.TotalLaps,
+            snapshot.TrackStatusCode,
+            snapshot.TrackStatusMessage,
+            snapshot.Weather,
+            Drivers = viewFactory.BuildLeaderboard(snapshot)
+        });
+    }
+
+    [HttpGet("map")]
+    public IActionResult GetMap()
+    {
+        var snapshot = raceStateStore.GetSnapshot();
+        return Ok(new
+        {
+            snapshot.SessionId,
+            Positions = viewFactory.BuildMapPositions(snapshot)
+        });
+    }
+
+    [HttpGet("dashboard")]
+    public IActionResult GetDashboard()
+    {
+        var snapshot = raceStateStore.GetSnapshot();
+        return Ok(viewFactory.BuildDashboard(snapshot));
     }
 }

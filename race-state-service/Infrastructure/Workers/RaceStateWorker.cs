@@ -1,5 +1,6 @@
 using System.Text.Json;
 using F1.RaceState.Service.Application.Contracts;
+using F1.RaceState.Service.Application.Services;
 using F1.RaceState.Service.Infrastructure.Configuration;
 using F1.RaceState.Service.Infrastructure.Persistence;
 using F1.Shared.Models;
@@ -10,6 +11,7 @@ namespace F1.RaceState.Service.Infrastructure.Workers;
 
 public sealed class RaceStateWorker(
     IRaceStateStore raceStateStore,
+    RaceStateBroadcaster broadcaster,
     StatePersistenceService persistenceService,
     IOptions<MqttOptions> mqttOptions,
     ILogger<RaceStateWorker> logger) : BackgroundService
@@ -17,6 +19,7 @@ public sealed class RaceStateWorker(
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
     private readonly IRaceStateStore _raceStateStore = raceStateStore;
+    private readonly RaceStateBroadcaster _broadcaster = broadcaster;
     private readonly StatePersistenceService _persistenceService = persistenceService;
     private readonly MqttOptions _mqttOptions = mqttOptions.Value;
     private readonly ILogger<RaceStateWorker> _logger = logger;
@@ -75,6 +78,7 @@ public sealed class RaceStateWorker(
                     }
 
                     await _persistenceService.PersistAsync(_raceStateStore.GetCheckpoint(), stoppingToken);
+                    await _broadcaster.BroadcastChangeAsync(applyResult.StateKey, canonicalEvent, stoppingToken);
 
                     _logger.LogInformation(
                         "Applied canonical event {EventType} for session {SessionId}. eventTime={EventTime:o}, sequence={Sequence}.",

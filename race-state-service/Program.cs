@@ -15,6 +15,8 @@ builder.Services.Configure<MqttOptions>(builder.Configuration.GetSection(MqttOpt
 builder.Services.Configure<StatePersistenceOptions>(builder.Configuration.GetSection(StatePersistenceOptions.SectionName));
 
 builder.Services.AddSingleton<IRaceStateStore, RaceStateStore>();
+builder.Services.AddSingleton<RaceStateViewFactory>();
+builder.Services.AddSingleton<RaceStateBroadcaster>();
 builder.Services.AddSingleton<StatePersistenceService>();
 builder.Services.AddSingleton<RaceStateWorker>();
 builder.Services.AddHostedService<RaceStateRecoveryHostedService>();
@@ -53,7 +55,20 @@ app.UseExceptionHandler(exceptionHandler =>
     });
 });
 
+app.UseWebSockets();
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.Map("/ws/race-state", async context =>
+{
+    if (!context.WebSockets.IsWebSocketRequest)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        return;
+    }
+
+    var broadcaster = context.RequestServices.GetRequiredService<RaceStateBroadcaster>();
+    var socket = await context.WebSockets.AcceptWebSocketAsync();
+    await broadcaster.AddClientAsync(socket, context.RequestAborted);
+});
 
 app.Run();
