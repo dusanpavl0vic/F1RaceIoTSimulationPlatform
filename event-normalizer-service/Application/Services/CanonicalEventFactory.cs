@@ -1,9 +1,9 @@
 using System.Globalization;
-using System.IO.Compression;
 using System.Text;
 using System.Text.Json.Nodes;
 using F1.EventNormalizer.Service.Application.Contracts;
 using F1.EventNormalizer.Service.Application.Models;
+using F1.EventNormalizer.Service.Infrastructure.Feeds;
 using F1.Shared.Models;
 
 namespace F1.EventNormalizer.Service.Application.Services;
@@ -228,7 +228,7 @@ public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCo
 
     private IReadOnlyList<CanonicalEvent> CreateDecodedPositionEvents(RawReplayEvent rawEvent, JsonNode rawData)
     {
-        if (TryDecodeCompressedJson(rawData) is not JsonObject decoded
+        if (CompressedFeedDecoder.DecodeRawData(rawData) is not JsonObject decoded
             || decoded["Position"] is not JsonArray positions)
         {
             return [BuildCanonicalEvent(rawEvent, "car.position.updated", rawEvent.DriverNumber, WrapPayload(rawData.DeepClone()))];
@@ -287,7 +287,7 @@ public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCo
 
     private IReadOnlyList<CanonicalEvent> CreateDecodedTelemetryEvents(RawReplayEvent rawEvent, JsonNode rawData)
     {
-        if (TryDecodeCompressedJson(rawData) is not JsonObject decoded
+        if (CompressedFeedDecoder.DecodeRawData(rawData) is not JsonObject decoded
             || decoded["Entries"] is not JsonArray entriesArray)
         {
             return [BuildCanonicalEvent(rawEvent, "car.telemetry.updated", rawEvent.DriverNumber, WrapPayload(rawData.DeepClone()))];
@@ -356,33 +356,6 @@ public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCo
         return events.Count > 0
             ? events
             : [BuildCanonicalEvent(rawEvent, "car.telemetry.updated", rawEvent.DriverNumber, WrapPayload(decoded.DeepClone()))];
-    }
-
-    private static JsonObject? TryDecodeCompressedJson(JsonNode rawData)
-    {
-        string encoded;
-        try
-        {
-            encoded = rawData.GetValue<string>();
-        }
-        catch
-        {
-            return rawData as JsonObject;
-        }
-
-        try
-        {
-            var compressedBytes = Convert.FromBase64String(encoded);
-            using var input = new MemoryStream(compressedBytes);
-            using var deflateStream = new DeflateStream(input, CompressionMode.Decompress);
-            using var reader = new StreamReader(deflateStream, Encoding.UTF8);
-            var json = reader.ReadToEnd();
-            return JsonNode.Parse(json) as JsonObject;
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     private static CanonicalEvent BuildCanonicalEvent(

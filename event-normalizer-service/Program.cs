@@ -2,6 +2,7 @@ using F1.EventNormalizer.Service.Application.Contracts;
 using F1.EventNormalizer.Service.Application.Services;
 using F1.EventNormalizer.Service.Domain.Services;
 using F1.EventNormalizer.Service.Infrastructure.Configuration;
+using F1.EventNormalizer.Service.Infrastructure.Diagnostics;
 using F1.EventNormalizer.Service.Infrastructure.Mqtt;
 using F1.EventNormalizer.Service.Infrastructure.Workers;
 using Microsoft.AspNetCore.Diagnostics;
@@ -14,10 +15,12 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddProblemDetails();
 
 builder.Services.Configure<MqttOptions>(builder.Configuration.GetSection(MqttOptions.SectionName));
+builder.Services.Configure<CaptureOptions>(builder.Configuration.GetSection(CaptureOptions.SectionName));
 
 builder.Services.AddSingleton<ICanonicalEventFactory, CanonicalEventFactory>();
 builder.Services.AddSingleton<ICanonicalTopicMapper, CanonicalTopicMapper>();
 builder.Services.AddSingleton<IPositionCoordinateResolver, PositionCoordinateResolver>();
+builder.Services.AddSingleton<IEventCaptureWriter, FileEventCaptureWriter>();
 builder.Services.AddSingleton<IRawReplayEventSubscriber, RawReplayEventSubscriber>();
 builder.Services.AddSingleton<ICanonicalEventPublisher, CanonicalEventPublisher>();
 builder.Services.AddSingleton<NormalizerStatusStore>();

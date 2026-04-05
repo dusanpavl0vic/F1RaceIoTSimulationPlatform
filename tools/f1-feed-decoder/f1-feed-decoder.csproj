@@ -8,4 +8,8 @@
     <RootNamespace>F1.FeedDecoder.Tool</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\event-normalizer-service\event-normalizer-service.csproj" />
+  </ItemGroup>
+
 </Project>

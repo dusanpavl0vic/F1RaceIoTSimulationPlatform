@@ -1,7 +1,7 @@
 using System.Globalization;
-using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using F1.EventNormalizer.Service.Infrastructure.Feeds;
 
 var arguments = CliArguments.Parse(args);
 if (!arguments.IsValid)
@@ -257,8 +257,7 @@ sealed class JsonStreamReader(string filePath)
                 continue;
             }
 
-            var payloadText = ExtractPayloadText(line);
-            var decodedJson = DecodeCompressedPayload(payloadText);
+            var decodedJson = CompressedFeedDecoder.DecodeJsonStreamLine(line);
             var jsonNode = JsonNode.Parse(decodedJson) as JsonObject;
             if (jsonNode is null)
             {
@@ -269,36 +268,6 @@ sealed class JsonStreamReader(string filePath)
         }
     }
 
-    private static string ExtractPayloadText(string line)
-    {
-        var payload = line;
-        if (LooksLikeTimestampPrefixedLine(line))
-        {
-            payload = line[12..];
-        }
-
-        if (payload.StartsWith('"') && payload.EndsWith('"') && payload.Length >= 2)
-        {
-            payload = payload[1..^1];
-        }
-
-        return payload;
-    }
-
-    private static bool LooksLikeTimestampPrefixedLine(string line)
-        => line.Length > 12
-           && line[2] == ':'
-           && line[5] == ':'
-           && line[8] == '.';
-
-    private static string DecodeCompressedPayload(string payload)
-    {
-        var bytes = Convert.FromBase64String(payload);
-        using var input = new MemoryStream(bytes);
-        using var deflateStream = new DeflateStream(input, CompressionMode.Decompress);
-        using var reader = new StreamReader(deflateStream);
-        return reader.ReadToEnd();
-    }
 }
 
 sealed record DecodedJsonEntry(int LineNumber, JsonObject Payload);
