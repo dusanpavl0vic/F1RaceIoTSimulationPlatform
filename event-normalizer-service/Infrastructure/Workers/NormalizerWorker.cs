@@ -1,5 +1,7 @@
 using F1.EventNormalizer.Service.Application.Contracts;
+using F1.EventNormalizer.Service.Application.Models;
 using F1.EventNormalizer.Service.Application.Services;
+using F1.EventNormalizer.Service.Infrastructure.Configuration;
 using System.Text.Json;
 
 namespace F1.EventNormalizer.Service.Infrastructure.Workers;
@@ -22,6 +24,8 @@ public sealed class NormalizerWorker(
     private readonly IEventCaptureWriter _eventCaptureWriter = eventCaptureWriter;
     private readonly NormalizerStatusStore _statusStore = statusStore;
     private readonly ILogger<NormalizerWorker> _logger = logger;
+
+    private bool _publishingActivated;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -52,17 +56,21 @@ public sealed class NormalizerWorker(
                         JsonSerializer.Serialize(consumedEvent.Event, SerializerOptions),
                         stoppingToken);
 
-                    var canonicalEvents = _canonicalEventFactory.Create(consumedEvent.Event);
-                    foreach (var canonicalEvent in canonicalEvents)
+                    if (_publishingActivated)
                     {
-                        var topic = _canonicalTopicMapper.Map(canonicalEvent);
-                        await _canonicalEventPublisher.PublishAsync(topic, canonicalEvent, stoppingToken);
-                        await _eventCaptureWriter.WriteAsync(
-                            "canonical-output-authoritative",
-                            topic,
-                            JsonSerializer.Serialize(canonicalEvent, SerializerOptions),
-                            stoppingToken);
-                        _statusStore.RecordPublished(topic, 1);
+                        await PublishCanonicalEventsAsync(consumedEvent, stoppingToken);
+                        continue;
+                    }
+
+                    if (IsSessionStarted(consumedEvent))
+                    {
+                        _publishingActivated = true;
+                        _logger.LogInformation(
+                            "Canonical publishing activated for session {SessionId} at SessionStatus Started. Event time: {SessionStart}.",
+                            consumedEvent.Event.SessionId,
+                            consumedEvent.Event.EventTime);
+
+                        await PublishCanonicalEventsAsync(consumedEvent, stoppingToken);
                     }
                 }
                 catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
@@ -100,4 +108,24 @@ public sealed class NormalizerWorker(
             await _canonicalEventPublisher.PingAsync(cancellationToken);
         }
     }
+
+    private async Task PublishCanonicalEventsAsync(ConsumedRawEvent consumedEvent, CancellationToken cancellationToken)
+    {
+        var canonicalEvents = _canonicalEventFactory.Create(consumedEvent.Event);
+        foreach (var canonicalEvent in canonicalEvents)
+        {
+            var topic = _canonicalTopicMapper.Map(canonicalEvent);
+            await _canonicalEventPublisher.PublishAsync(topic, canonicalEvent, cancellationToken);
+            await _eventCaptureWriter.WriteAsync(
+                "canonical-output-authoritative",
+                topic,
+                JsonSerializer.Serialize(canonicalEvent, SerializerOptions),
+                cancellationToken);
+            _statusStore.RecordPublished(topic, 1);
+        }
+    }
+
+    private static bool IsSessionStarted(ConsumedRawEvent consumedEvent)
+        => string.Equals(consumedEvent.Event.SourceFeed, "SessionStatus", StringComparison.Ordinal)
+           && string.Equals(consumedEvent.Event.Payload["rawData"]?["Status"]?.ToString(), "Started", StringComparison.OrdinalIgnoreCase);
 }

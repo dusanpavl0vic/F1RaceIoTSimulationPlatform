@@ -5,4 +5,6 @@ public sealed class ReplayServiceOptions
     public const string SectionName = "Replay";
 
     public string DefaultConfigurationPath { get; set; } = "./runtime-data/replay-config.generated.json";
+
+    public bool StartFromSessionStatusStarted { get; set; } = true;
 }

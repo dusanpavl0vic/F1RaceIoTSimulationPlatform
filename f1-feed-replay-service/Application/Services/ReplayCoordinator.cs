@@ -3,6 +3,8 @@ using F1.FeedReplay.Service.Application.Contracts;
 using F1.FeedReplay.Service.Application.Models;
 using F1.FeedReplay.Service.Domain.Models;
 using F1.FeedReplay.Service.Domain.Services;
+using F1.FeedReplay.Service.Infrastructure.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace F1.FeedReplay.Service.Application.Services;
 
@@ -12,6 +14,7 @@ public sealed class ReplayCoordinator(
     IReplayExecutionQueue executionQueue,
     VirtualClock virtualClock,
     IReplayTimeProvider timeProvider,
+    IOptions<ReplayServiceOptions> replayOptions,
     ILogger<ReplayCoordinator> logger) : IReplayCoordinator
 {
     private readonly object _gate = new();
@@ -20,6 +23,7 @@ public sealed class ReplayCoordinator(
     private readonly IReplayExecutionQueue _executionQueue = executionQueue;
     private readonly VirtualClock _virtualClock = virtualClock;
     private readonly IReplayTimeProvider _timeProvider = timeProvider;
+    private readonly ReplayServiceOptions _replayOptions = replayOptions.Value;
     private readonly ILogger<ReplayCoordinator> _logger = logger;
 
     private ReplaySession? _session;
@@ -56,6 +60,11 @@ public sealed class ReplayCoordinator(
             .Select((evt, index) => evt with { StableOrder = index })
             .ToArray();
 
+        if (_replayOptions.StartFromSessionStatusStarted)
+        {
+            orderedEvents = FilterEventsFromSessionStart(orderedEvents);
+        }
+
         var simulationStartReference = orderedEvents.Min(evt => evt.EventTime);
         orderedEvents = orderedEvents
             .Select((evt, index) => evt with
@@ -84,11 +93,12 @@ public sealed class ReplayCoordinator(
         }
 
         _logger.LogInformation(
-            "Loaded replay session {SessionId} with {EventCount} events across {FeedCount} feeds. Simulation reference: {SimulationReference}.",
+            "Loaded replay session {SessionId} with {EventCount} events across {FeedCount} feeds. Simulation reference: {SimulationReference}. StartFromSessionStatusStarted: {StartFromSessionStatusStarted}.",
             configuration.SessionId,
             orderedEvents.Length,
             configuration.Feeds.Count,
-            simulationStartReference);
+            simulationStartReference,
+            _replayOptions.StartFromSessionStatusStarted);
 
         return GetStatus();
     }
@@ -268,6 +278,39 @@ public sealed class ReplayCoordinator(
 
         return Task.CompletedTask;
     }
+
+    private ReplayEvent[] FilterEventsFromSessionStart(IReadOnlyList<ReplayEvent> orderedEvents)
+    {
+        var sessionStartedEvent = orderedEvents.FirstOrDefault(IsSessionStartedEvent);
+        if (sessionStartedEvent is null)
+        {
+            _logger.LogWarning(
+                "Replay option StartFromSessionStatusStarted is enabled, but SessionStatus Started was not found. Using the full event stream.");
+            return orderedEvents.ToArray();
+        }
+
+        var filteredEvents = orderedEvents
+            .Where(evt => evt.EventTime >= sessionStartedEvent.EventTime)
+            .Select((evt, index) => evt with { StableOrder = index })
+            .ToArray();
+
+        _logger.LogInformation(
+            "Filtered replay events from first SessionStatus Started at {SessionStart}. Removed {RemovedEventCount} pre-start events. Remaining events: {RemainingEventCount}.",
+            sessionStartedEvent.EventTime,
+            orderedEvents.Count - filteredEvents.Length,
+            filteredEvents.Length);
+
+        if (filteredEvents.Length == 0)
+        {
+            throw new InvalidOperationException("SessionStatus Started was found, but no replay events remained after filtering.");
+        }
+
+        return filteredEvents;
+    }
+
+    private static bool IsSessionStartedEvent(ReplayEvent replayEvent)
+        => string.Equals(replayEvent.SourceFeed, "SessionStatus", StringComparison.Ordinal)
+           && string.Equals(replayEvent.Payload["Status"]?.ToString(), "Started", StringComparison.OrdinalIgnoreCase);
 
     private Task OnFaultedAsync(Exception exception)
     {
