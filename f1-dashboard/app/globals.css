@@ -33,9 +33,54 @@ body {
     var(--bg);
 }
 
-.page-shell {
-  width: min(1100px, calc(100vw - 32px));
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-shell__content {
+  width: min(1240px, calc(100vw - 32px));
   margin: 0 auto;
+  padding-bottom: 56px;
+}
+
+.app-navigation {
+  width: min(1240px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 18px 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.app-navigation__brand strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.app-navigation__list {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.app-navigation__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 252, 247, 0.76);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.page-shell {
+  width: 100%;
   padding: 24px 0 56px;
 }
 
@@ -67,10 +112,67 @@ body {
   color: var(--muted);
 }
 
+.template-stack {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.template-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  border-radius: 22px;
+  padding: 18px 20px;
+}
+
+.template-card strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 1.25rem;
+}
+
+.template-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.template-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+}
+
+.template-card-wide pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 @media (max-width: 640px) {
   .page-shell {
-    width: min(100vw - 20px, 100%);
+    width: 100%;
     padding-top: 12px;
+  }
+
+  .app-navigation {
+    width: min(100vw - 20px, 100%);
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .app-navigation__list {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .app-shell__content {
+    width: min(100vw - 20px, 100%);
   }
 
   .hero-panel {
