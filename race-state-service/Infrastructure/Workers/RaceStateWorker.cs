@@ -43,7 +43,11 @@ public sealed class RaceStateWorker(
             stoppingToken);
 
         await subscriber.SubscribeAsync(_mqttOptions.TopicFilter, stoppingToken);
-        _logger.LogInformation("Race state service subscribed to {TopicFilter}.", _mqttOptions.TopicFilter);
+        _logger.LogInformation(
+            "Race state service subscribed to {TopicFilter}. checkpointPath={CheckpointPath}, currentStatePath={CurrentStatePath}.",
+            _mqttOptions.TopicFilter,
+            _persistenceService.ResolveCheckpointPath(),
+            _persistenceService.ResolveCurrentStatePath());
 
         var pingTask = RunPingLoopAsync(subscriber, stoppingToken);
 
@@ -81,9 +85,11 @@ public sealed class RaceStateWorker(
                     await _broadcaster.BroadcastChangeAsync(applyResult.StateKey, canonicalEvent, stoppingToken);
 
                     _logger.LogInformation(
-                        "Applied canonical event {EventType} for session {SessionId}. eventTime={EventTime:o}, sequence={Sequence}.",
+                        "Applied canonical event {EventType} for session {SessionId}. stateKey={StateKey}, driver={DriverNumber}, eventTime={EventTime:o}, sequence={Sequence}.",
                         canonicalEvent.EventType,
                         canonicalEvent.SessionId,
+                        applyResult.StateKey,
+                        canonicalEvent.DriverNumber,
                         canonicalEvent.EventTime,
                         canonicalEvent.Sequence);
                 }

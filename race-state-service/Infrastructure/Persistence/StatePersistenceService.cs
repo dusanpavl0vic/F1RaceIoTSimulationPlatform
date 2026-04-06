@@ -5,10 +5,13 @@ using Microsoft.Extensions.Options;
 
 namespace F1.RaceState.Service.Infrastructure.Persistence;
 
-public sealed class StatePersistenceService(IOptions<StatePersistenceOptions> options)
+public sealed class StatePersistenceService(
+    IOptions<StatePersistenceOptions> options,
+    ILogger<StatePersistenceService> logger)
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private readonly StatePersistenceOptions _options = options.Value;
+    private readonly ILogger<StatePersistenceService> _logger = logger;
 
     public bool IsEnabled => _options.Enabled;
     public bool AutoRestoreOnStartup => _options.AutoRestoreOnStartup;
@@ -26,6 +29,14 @@ public sealed class StatePersistenceService(IOptions<StatePersistenceOptions> op
 
         await WriteJsonAtomicallyAsync(checkpointPath, checkpoint, cancellationToken);
         await WriteJsonAtomicallyAsync(currentStatePath, checkpoint.Snapshot, cancellationToken);
+
+        _logger.LogDebug(
+            "Persisted race state. checkpoint={CheckpointPath}, currentState={CurrentStatePath}, session={SessionId}, lastEventTime={LastEventTime:o}, lastSequence={LastSequence}.",
+            checkpointPath,
+            currentStatePath,
+            checkpoint.Snapshot.SessionId,
+            checkpoint.Snapshot.LastProcessedEventTime,
+            checkpoint.Snapshot.LastProcessedSequence);
     }
 
     public async Task<RaceStateCheckpoint?> LoadAsync(CancellationToken cancellationToken)
@@ -42,7 +53,18 @@ public sealed class StatePersistenceService(IOptions<StatePersistenceOptions> op
         }
 
         await using var stream = File.OpenRead(path);
-        return await JsonSerializer.DeserializeAsync<RaceStateCheckpoint>(stream, SerializerOptions, cancellationToken);
+        var checkpoint = await JsonSerializer.DeserializeAsync<RaceStateCheckpoint>(stream, SerializerOptions, cancellationToken);
+        if (checkpoint is not null)
+        {
+            _logger.LogInformation(
+                "Loaded race state checkpoint from {CheckpointPath}. session={SessionId}, lastEventTime={LastEventTime:o}, lastSequence={LastSequence}.",
+                path,
+                checkpoint.Snapshot.SessionId,
+                checkpoint.Snapshot.LastProcessedEventTime,
+                checkpoint.Snapshot.LastProcessedSequence);
+        }
+
+        return checkpoint;
     }
 
     public string ResolveCheckpointPath()

@@ -1,8 +1,6 @@
 using F1.EventNormalizer.Service.Application.Contracts;
 using F1.EventNormalizer.Service.Application.Models;
 using F1.EventNormalizer.Service.Application.Services;
-using F1.EventNormalizer.Service.Infrastructure.Configuration;
-using System.Text.Json;
 
 namespace F1.EventNormalizer.Service.Infrastructure.Workers;
 
@@ -11,17 +9,13 @@ public sealed class NormalizerWorker(
     ICanonicalTopicMapper canonicalTopicMapper,
     IRawReplayEventSubscriber rawReplayEventSubscriber,
     ICanonicalEventPublisher canonicalEventPublisher,
-    IEventCaptureWriter eventCaptureWriter,
     NormalizerStatusStore statusStore,
     ILogger<NormalizerWorker> logger) : BackgroundService
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
-
     private readonly ICanonicalEventFactory _canonicalEventFactory = canonicalEventFactory;
     private readonly ICanonicalTopicMapper _canonicalTopicMapper = canonicalTopicMapper;
     private readonly IRawReplayEventSubscriber _rawReplayEventSubscriber = rawReplayEventSubscriber;
     private readonly ICanonicalEventPublisher _canonicalEventPublisher = canonicalEventPublisher;
-    private readonly IEventCaptureWriter _eventCaptureWriter = eventCaptureWriter;
     private readonly NormalizerStatusStore _statusStore = statusStore;
     private readonly ILogger<NormalizerWorker> _logger = logger;
 
@@ -50,11 +44,6 @@ public sealed class NormalizerWorker(
                     }
 
                     _statusStore.RecordConsumed(consumedEvent.Topic);
-                    await _eventCaptureWriter.WriteAsync(
-                        "raw-input-authoritative",
-                        consumedEvent.Topic,
-                        JsonSerializer.Serialize(consumedEvent.Event, SerializerOptions),
-                        stoppingToken);
 
                     if (_publishingActivated)
                     {
@@ -116,11 +105,6 @@ public sealed class NormalizerWorker(
         {
             var topic = _canonicalTopicMapper.Map(canonicalEvent);
             await _canonicalEventPublisher.PublishAsync(topic, canonicalEvent, cancellationToken);
-            await _eventCaptureWriter.WriteAsync(
-                "canonical-output-authoritative",
-                topic,
-                JsonSerializer.Serialize(canonicalEvent, SerializerOptions),
-                cancellationToken);
             _statusStore.RecordPublished(topic, 1);
         }
     }

@@ -30,8 +30,6 @@ services:
       ASPNETCORE_ENVIRONMENT: Docker
       DOTNET_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://+:8080
-    volumes:
-      - ./docker/normalizer-data:/data
     restart: unless-stopped
 
   race-state-service:
@@ -69,45 +67,30 @@ services:
       timeout: 3s
       retries: 10
 
-  mqtt-capture-helper:
+  raw-mqtt-capture-helper:
     image: eclipse-mosquitto:2
-    container_name: f1-mqtt-capture-helper
+    container_name: f1-raw-mqtt-capture-helper
     depends_on:
       mosquitto:
         condition: service_healthy
     volumes:
       - ./helpers/mqtt-capture/capture.sh:/helper/capture.sh:ro
-      - ./docker/replay-data/mqtt-capture:/capture
+      - ./docker/mqtt-capture/raw:/capture
     environment:
       CAPTURE_TOPIC_FILTER: f1/raw/#
       CAPTURE_OUTPUT_DIR: /capture
     command: ["/bin/sh", "/helper/capture.sh"]
     restart: unless-stopped
 
-  normalizer-input-capture-helper:
+  canonical-mqtt-capture-helper:
     image: eclipse-mosquitto:2
-    container_name: f1-normalizer-input-capture-helper
+    container_name: f1-canonical-mqtt-capture-helper
     depends_on:
       mosquitto:
         condition: service_healthy
     volumes:
       - ./helpers/mqtt-capture/capture.sh:/helper/capture.sh:ro
-      - ./docker/normalizer-data/raw-input-capture:/capture
-    environment:
-      CAPTURE_TOPIC_FILTER: f1/raw/#
-      CAPTURE_OUTPUT_DIR: /capture
-    command: ["/bin/sh", "/helper/capture.sh"]
-    restart: unless-stopped
-
-  normalizer-output-capture-helper:
-    image: eclipse-mosquitto:2
-    container_name: f1-normalizer-output-capture-helper
-    depends_on:
-      mosquitto:
-        condition: service_healthy
-    volumes:
-      - ./helpers/mqtt-capture/capture.sh:/helper/capture.sh:ro
-      - ./docker/normalizer-data/canonical-output-capture:/capture
+      - ./docker/mqtt-capture/canonical:/capture
     environment:
       CAPTURE_TOPIC_FILTER: f1/canonical/#
       CAPTURE_OUTPUT_DIR: /capture
