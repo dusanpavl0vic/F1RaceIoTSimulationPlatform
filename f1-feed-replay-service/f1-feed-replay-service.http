@@ -9,11 +9,7 @@ POST {{f1_feed_replay_service_HostAddress}}/api/replay/bootstrap
 Content-Type: application/json
 
 {
-  "indexUrl": "https://livetiming.formula1.com/static/2021/2021-09-12_Italian_Grand_Prix/2021-09-12_Race/Index.json",
-  "downloadFeeds": true,
-  "forceDownload": false,
-  "loadAfterDownload": true,
-  "startAfterLoad": false
+  "indexUrl": "https://livetiming.formula1.com/static/2021/2021-09-12_Italian_Grand_Prix/2021-09-12_Race/Index.json"
 }
 
 ###

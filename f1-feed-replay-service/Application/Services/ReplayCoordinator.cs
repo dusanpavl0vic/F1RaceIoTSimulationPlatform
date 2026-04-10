@@ -5,6 +5,7 @@ using F1.FeedReplay.Service.Domain.Models;
 using F1.FeedReplay.Service.Domain.Services;
 using F1.FeedReplay.Service.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
+using System.Text.Json.Nodes;
 
 namespace F1.FeedReplay.Service.Application.Services;
 
@@ -17,6 +18,8 @@ public sealed class ReplayCoordinator(
     IOptions<ReplayServiceOptions> replayOptions,
     ILogger<ReplayCoordinator> logger) : IReplayCoordinator
 {
+    private static readonly HashSet<string> EmptyExcludedFeeds = new(StringComparer.Ordinal);
+
     private readonly object _gate = new();
     private readonly IFeedParser _feedParser = feedParser;
     private readonly IReplayConfigurationLoader _configurationLoader = configurationLoader;
@@ -25,6 +28,9 @@ public sealed class ReplayCoordinator(
     private readonly IReplayTimeProvider _timeProvider = timeProvider;
     private readonly ReplayServiceOptions _replayOptions = replayOptions.Value;
     private readonly ILogger<ReplayCoordinator> _logger = logger;
+    private readonly HashSet<string> _excludedFeeds = replayOptions.Value.ExcludedFeeds.Length == 0
+        ? EmptyExcludedFeeds
+        : new HashSet<string>(replayOptions.Value.ExcludedFeeds, StringComparer.Ordinal);
 
     private ReplaySession? _session;
     private ReplayRunState _state = ReplayRunState.Idle;
@@ -41,8 +47,20 @@ public sealed class ReplayCoordinator(
 
         var configuration = await _configurationLoader.LoadAsync(command.ConfigurationPath ?? string.Empty, cancellationToken);
         var parsedEvents = new List<ReplayEvent>();
+        var activeFeeds = configuration.Feeds
+            .Where(feed => !_excludedFeeds.Contains(feed.Name))
+            .ToArray();
 
-        foreach (var indexedFeed in configuration.Feeds.Select((feed, index) => (feed, index)))
+        var skippedFeedCount = configuration.Feeds.Count - activeFeeds.Length;
+        if (skippedFeedCount > 0)
+        {
+            _logger.LogInformation(
+                "Replay loading skipped {SkippedFeedCount} excluded feeds: {ExcludedFeeds}.",
+                skippedFeedCount,
+                string.Join(", ", configuration.Feeds.Where(feed => _excludedFeeds.Contains(feed.Name)).Select(feed => feed.Name)));
+        }
+
+        foreach (var indexedFeed in activeFeeds.Select((feed, index) => (feed, index)))
         {
             var events = await _feedParser.ParseAsync(configuration, indexedFeed.feed, indexedFeed.index, cancellationToken);
             parsedEvents.AddRange(events);
@@ -62,7 +80,9 @@ public sealed class ReplayCoordinator(
 
         if (_replayOptions.StartFromSessionStatusStarted)
         {
-            orderedEvents = FilterEventsFromSessionStart(orderedEvents);
+            orderedEvents = FilterEventsFromSessionStart(
+                orderedEvents,
+                activeFeeds.Select(feed => feed.Name).ToHashSet(StringComparer.Ordinal));
         }
 
         var simulationStartReference = orderedEvents.Min(evt => evt.EventTime);
@@ -96,7 +116,7 @@ public sealed class ReplayCoordinator(
             "Loaded replay session {SessionId} with {EventCount} events across {FeedCount} feeds. Simulation reference: {SimulationReference}. StartFromSessionStatusStarted: {StartFromSessionStatusStarted}.",
             configuration.SessionId,
             orderedEvents.Length,
-            configuration.Feeds.Count,
+            activeFeeds.Length,
             simulationStartReference,
             _replayOptions.StartFromSessionStatusStarted);
 
@@ -279,7 +299,9 @@ public sealed class ReplayCoordinator(
         return Task.CompletedTask;
     }
 
-    private ReplayEvent[] FilterEventsFromSessionStart(IReadOnlyList<ReplayEvent> orderedEvents)
+    private ReplayEvent[] FilterEventsFromSessionStart(
+        IReadOnlyList<ReplayEvent> orderedEvents,
+        IReadOnlySet<string> activeFeedNames)
     {
         var sessionStartedEvent = orderedEvents.FirstOrDefault(IsSessionStartedEvent);
         if (sessionStartedEvent is null)
@@ -289,15 +311,38 @@ public sealed class ReplayCoordinator(
             return orderedEvents.ToArray();
         }
 
+        var leadIn = TimeSpan.FromSeconds(Math.Max(0, _replayOptions.SessionStartLeadInSeconds));
+        var replayStartTime = sessionStartedEvent.EventTime - leadIn;
+
         var filteredEvents = orderedEvents
-            .Where(evt => evt.EventTime >= sessionStartedEvent.EventTime)
+            .Where(evt => evt.EventTime >= replayStartTime)
             .Select((evt, index) => evt with { StableOrder = index })
             .ToArray();
 
+        var bootstrapEvents = BuildBootstrapStateEvents(
+            orderedEvents,
+            activeFeedNames,
+            replayStartTime);
+        if (bootstrapEvents.Length > 0)
+        {
+            filteredEvents = bootstrapEvents
+                .Concat(filteredEvents)
+                .OrderBy(evt => evt.EventTime)
+                .ThenBy(evt => evt.Sequence)
+                .ThenBy(evt => evt.StableOrder)
+                .Select((evt, index) => evt with { StableOrder = index })
+                .ToArray();
+        }
+
+        var removedEventCount = orderedEvents.Count(evt => evt.EventTime < replayStartTime);
+
         _logger.LogInformation(
-            "Filtered replay events from first SessionStatus Started at {SessionStart}. Removed {RemovedEventCount} pre-start events. Remaining events: {RemainingEventCount}.",
+            "Filtered replay events from {ReplayStartTime} using first SessionStatus Started at {SessionStart}. Lead-in: {LeadInSeconds}s. Added {BootstrapEventCount} bootstrap events. Removed {RemovedEventCount} pre-start events. Remaining events: {RemainingEventCount}.",
+            replayStartTime,
             sessionStartedEvent.EventTime,
-            orderedEvents.Count - filteredEvents.Length,
+            _replayOptions.SessionStartLeadInSeconds,
+            bootstrapEvents.Length,
+            removedEventCount,
             filteredEvents.Length);
 
         if (filteredEvents.Length == 0)
@@ -311,6 +356,104 @@ public sealed class ReplayCoordinator(
     private static bool IsSessionStartedEvent(ReplayEvent replayEvent)
         => string.Equals(replayEvent.SourceFeed, "SessionStatus", StringComparison.Ordinal)
            && string.Equals(replayEvent.Payload["Status"]?.ToString(), "Started", StringComparison.OrdinalIgnoreCase);
+
+    private static ReplayEvent[] BuildBootstrapStateEvents(
+        IReadOnlyList<ReplayEvent> orderedEvents,
+        IReadOnlySet<string> activeFeedNames,
+        DateTimeOffset replayStartTime)
+    {
+        var bootstrapEvents = new List<ReplayEvent>();
+        var bootstrapSequence = 0L;
+
+        foreach (var sourceFeed in activeFeedNames.OrderBy(name => name, StringComparer.Ordinal))
+        {
+            var feedEvents = orderedEvents
+                .Where(evt => string.Equals(evt.SourceFeed, sourceFeed, StringComparison.Ordinal) && evt.EventTime < replayStartTime)
+                .ToArray();
+
+            if (feedEvents.Length == 0)
+            {
+                continue;
+            }
+
+            JsonNode? payload = BuildBootstrapPayloadForFeed(sourceFeed, feedEvents);
+
+            if (payload is null)
+            {
+                continue;
+            }
+
+            var referenceEvent = feedEvents[^1];
+            bootstrapEvents.Add(referenceEvent with
+            {
+                EventTime = replayStartTime,
+                Sequence = bootstrapSequence++,
+                StableOrder = -1,
+                Payload = payload
+            });
+        }
+
+        return bootstrapEvents.ToArray();
+    }
+
+    private static JsonNode? BuildBootstrapPayloadForFeed(
+        string sourceFeed,
+        IReadOnlyList<ReplayEvent> feedEvents)
+        => sourceFeed switch
+        {
+            "DriverList" => MergeObjects(feedEvents.Select(evt => evt.Payload)),
+            "TimingData" => WrapMergedChildObject("Lines", feedEvents.Select(evt => evt.Payload["Lines"])),
+            "TimingStats" => WrapMergedChildObject("Lines", feedEvents.Select(evt => evt.Payload["Lines"])),
+            "TimingAppData" => WrapMergedChildObject("Lines", feedEvents.Select(evt => evt.Payload["Lines"])),
+            "CurrentTyres" => WrapMergedChildObject("Tyres", feedEvents.Select(evt => evt.Payload["Tyres"])),
+            "TyreStintSeries" => WrapMergedChildObject("Stints", feedEvents.Select(evt => evt.Payload["Stints"])),
+            "PitLaneTimeCollection" => WrapMergedChildObject("PitTimes", feedEvents.Select(evt => evt.Payload["PitTimes"])),
+            _ => feedEvents[^1].Payload.DeepClone()
+        };
+
+    private static JsonNode? WrapMergedChildObject(string propertyName, IEnumerable<JsonNode?> nodes)
+    {
+        var merged = MergeObjects(nodes);
+        return merged is null ? null : new JsonObject { [propertyName] = merged };
+    }
+
+    private static JsonObject? MergeObjects(IEnumerable<JsonNode?> nodes)
+    {
+        JsonObject? merged = null;
+
+        foreach (var node in nodes)
+        {
+            if (node is not JsonObject current)
+            {
+                continue;
+            }
+
+            merged = merged is null
+                ? current.DeepClone().AsObject()
+                : MergeJsonObjects(merged, current);
+        }
+
+        return merged;
+    }
+
+    private static JsonObject MergeJsonObjects(JsonObject target, JsonObject source)
+    {
+        var merged = target.DeepClone().AsObject();
+
+        foreach (var entry in source)
+        {
+            if (entry.Value is JsonObject sourceObject && merged[entry.Key] is JsonObject targetObject)
+            {
+                merged[entry.Key] = MergeJsonObjects(targetObject, sourceObject);
+            }
+            else
+            {
+                merged[entry.Key] = entry.Value?.DeepClone();
+            }
+        }
+
+        return merged;
+    }
 
     private Task OnFaultedAsync(Exception exception)
     {

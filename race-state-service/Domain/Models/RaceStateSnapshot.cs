@@ -13,8 +13,5 @@ public sealed class RaceStateSnapshot
     public string? TrackStatusMessage { get; set; }
     public int? CurrentLap { get; set; }
     public int? TotalLaps { get; set; }
-    public JsonObject? Weather { get; set; }
-    public JsonArray RaceControlMessages { get; set; } = [];
-    public JsonArray TeamRadioCaptures { get; set; } = [];
     public Dictionary<int, DriverRaceState> Drivers { get; set; } = new();
 }

@@ -10,10 +10,26 @@ namespace F1.EventNormalizer.Service.Application.Services;
 
 public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCoordinateResolver) : ICanonicalEventFactory
 {
+    private static readonly HashSet<string> IgnoredFeeds = new(StringComparer.Ordinal)
+    {
+        "WeatherData",
+        "ChampionshipPrediction",
+        "ContentStreams",
+        "ExtrapolatedClock",
+        "Heartbeat",
+        "TeamRadio",
+        "WeatherDataSeries"
+    };
+
     private readonly IPositionCoordinateResolver _positionCoordinateResolver = positionCoordinateResolver;
 
     public IReadOnlyList<CanonicalEvent> Create(RawReplayEvent rawEvent)
     {
+        if (IgnoredFeeds.Contains(rawEvent.SourceFeed))
+        {
+            return [];
+        }
+
         var rawData = rawEvent.Payload["rawData"];
         if (rawData is null)
         {
@@ -23,12 +39,12 @@ public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCo
         return rawEvent.SourceFeed switch
         {
             "TimingData" => CreateLineEvents(rawEvent, rawData["Lines"], "timing.driver.updated", "timing"),
+            "TimingStats" => CreateLineEvents(rawEvent, rawData["Lines"], "timing.stats.updated", "timingStats"),
             "TimingAppData" => CreateLineEvents(rawEvent, rawData["Lines"], "timing.app.updated", "timingApp"),
             "DriverList" when rawData is JsonObject driverList => CreateDriverListEvents(rawEvent, driverList),
             "CurrentTyres" => CreateTyreEvents(rawEvent, rawData["Tyres"], "tyres.current.updated", "tyres"),
             "TyreStintSeries" => CreateTyreEvents(rawEvent, rawData["Stints"], "tyres.stint.updated", "stints"),
             "PitLaneTimeCollection" => CreatePitLaneEvents(rawEvent, rawData["PitTimes"]),
-            "TeamRadio" => CreateTeamRadioEvents(rawEvent, rawData["Captures"]),
             "Position.z" => CreateDecodedPositionEvents(rawEvent, rawData),
             "CarData.z" => CreateDecodedTelemetryEvents(rawEvent, rawData),
             _ => [BuildCanonicalEvent(rawEvent, MapEventType(rawEvent.SourceFeed), rawEvent.DriverNumber, WrapPayload(rawData.DeepClone()))]
@@ -185,45 +201,6 @@ public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCo
         return events.Count > 0
             ? events
             : [BuildCanonicalEvent(rawEvent, "pitlane.time.updated", rawEvent.DriverNumber, WrapPayload(pitTimes.DeepClone()))];
-    }
-
-    private IReadOnlyList<CanonicalEvent> CreateTeamRadioEvents(RawReplayEvent rawEvent, JsonNode? capturesNode)
-    {
-        var captures = capturesNode switch
-        {
-            JsonArray array => array.Where(item => item is JsonObject).Cast<JsonObject>().ToArray(),
-            JsonObject objectCaptures => objectCaptures.Select(pair => pair.Value as JsonObject).Where(item => item is not null).Cast<JsonObject>().ToArray(),
-            _ => []
-        };
-
-        if (captures.Length == 0)
-        {
-            return [BuildCanonicalEvent(rawEvent, "team-radio.capture", rawEvent.DriverNumber, WrapPayload(capturesNode?.DeepClone()))];
-        }
-
-        var order = 0;
-        return captures
-            .Select(capture =>
-            {
-                var driverNumber = TryParseDriverNumber(capture["RacingNumber"]?.ToString()) ?? rawEvent.DriverNumber;
-                return BuildCanonicalEvent(
-                    rawEvent,
-                    "team-radio.capture",
-                    driverNumber,
-                    new JsonObject
-                    {
-                        ["driverNumber"] = driverNumber,
-                        ["radio"] = new JsonObject
-                        {
-                            ["driverNumber"] = driverNumber,
-                            ["utc"] = capture["Utc"]?.ToString(),
-                            ["path"] = capture["Path"]?.ToString()
-                        }
-                    },
-                    eventTimeOverride: TryParseDate(capture["Utc"]?.ToString(), out var parsedUtc) ? parsedUtc : rawEvent.EventTime,
-                    sequenceOverride: CreateDerivedSequence(rawEvent.Sequence, ++order));
-            })
-            .ToArray();
     }
 
     private IReadOnlyList<CanonicalEvent> CreateDecodedPositionEvents(RawReplayEvent rawEvent, JsonNode rawData)
@@ -388,9 +365,9 @@ public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCo
             "SessionInfo" => "session.info.updated",
             "TrackStatus" => "track.status.updated",
             "TimingData" => "timing.driver.updated",
+            "TimingStats" => "timing.stats.updated",
             "TimingAppData" => "timing.app.updated",
             "LapCount" => "lap.count.updated",
-            "WeatherData" => "weather.updated",
             "RaceControlMessages" => "race-control.message",
             "DriverList" => "driver.list.updated",
             "CarData.z" => "car.telemetry.updated",
@@ -398,7 +375,6 @@ public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCo
             "CurrentTyres" => "tyres.current.updated",
             "TyreStintSeries" => "tyres.stint.updated",
             "PitLaneTimeCollection" => "pitlane.time.updated",
-            "TeamRadio" => "team-radio.capture",
             _ => $"feed.{ToKebabCase(sourceFeed)}.updated"
         };
 

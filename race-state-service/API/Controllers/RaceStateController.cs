@@ -9,7 +9,11 @@ namespace F1.RaceState.Service.API.Controllers;
 public sealed class RaceStateController(IRaceStateStore raceStateStore, RaceStateViewFactory viewFactory) : ControllerBase
 {
     [HttpGet("current")]
-    public IActionResult GetCurrent() => Ok(raceStateStore.GetSnapshot());
+    public IActionResult GetCurrent()
+    {
+        var snapshot = raceStateStore.GetSnapshot();
+        return Ok(viewFactory.BuildCurrentState(snapshot));
+    }
 
     [HttpGet("recovery")]
     public IActionResult GetRecoveryState()
@@ -48,7 +52,6 @@ public sealed class RaceStateController(IRaceStateStore raceStateStore, RaceStat
             snapshot.TotalLaps,
             snapshot.TrackStatusCode,
             snapshot.TrackStatusMessage,
-            snapshot.Weather,
             Drivers = viewFactory.BuildLeaderboard(snapshot)
         });
     }

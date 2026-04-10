@@ -5,9 +5,9 @@ import { useGetDashboardQuery } from "@/features/race-state/api/race-state-api";
 import { useWebSocket } from "@/features/race-state/hooks/use-websocket";
 import {
   buildRaceDashboardRows,
+  buildTrackMapPositions,
   buildSessionCards,
 } from "@/features/race-state/utils/dashboard-normalizers";
-import { applyRaceStateMessage } from "@/features/race-state/utils/live-dashboard-state";
 import { selectRaceStateUi } from "@/features/race-state/store/selectors";
 import {
   setLastWsPayloadPreview,
@@ -43,9 +43,10 @@ export function useRaceDashboardLive() {
 
       try {
         const message = JSON.parse(event.data) as RaceStateWsMessage;
-        setLiveDashboard((currentDashboard) =>
-          applyRaceStateMessage(currentDashboard, message)
-        );
+
+        if (message.type === "race.state.snapshot" || message.type === "race.state.change") {
+          setLiveDashboard(message.dashboard);
+        }
       } catch {
         void dashboardQuery.refetch();
       }
@@ -65,11 +66,20 @@ export function useRaceDashboardLive() {
     [liveDashboard]
   );
 
+  const mapPositions = useMemo(
+    () =>
+      liveDashboard
+        ? buildTrackMapPositions(liveDashboard)
+        : [],
+    [liveDashboard]
+  );
+
   return {
     ...dashboardQuery,
     data: liveDashboard,
     wsUi,
     sessionCards,
     leaderboardRows,
+    mapPositions,
   };
 }

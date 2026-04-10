@@ -9,5 +9,6 @@ public sealed record RaceStateChangeMessage(
     int? DriverNumber,
     DateTimeOffset EventTime,
     long Sequence,
+    RaceDashboardViewModel Dashboard,
     object Session,
     object Change);

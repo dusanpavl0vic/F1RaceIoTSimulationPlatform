@@ -20,10 +20,10 @@ public sealed class ReplayController(
                 request.ConfigurationPath,
                 request.SessionId,
                 request.FeedNames,
-                request.DownloadFeeds,
-                request.ForceDownload,
-                request.LoadAfterDownload,
-                request.StartAfterLoad),
+                DownloadFeeds: true,
+                ForceDownload: false,
+                LoadAfterDownload: true,
+                StartAfterLoad: false),
             cancellationToken);
 
         return Ok(result);

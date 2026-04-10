@@ -11,8 +11,7 @@ public sealed class EventTopicMapper : IEventTopicMapper
         {
             "SessionInfo" or "DriverList" or "LapCount" => "f1/raw/session",
             "TrackStatus" => "f1/raw/track-status",
-            "TimingData" => "f1/raw/timing",
-            "WeatherData" => "f1/raw/weather",
+            "TimingData" or "TimingStats" => "f1/raw/timing",
             "RaceControlMessages" => "f1/raw/race-control",
             "CarData.z" => "f1/raw/telemetry",
             "Position.z" => "f1/raw/position",

@@ -9,6 +9,7 @@ public sealed class DriverRaceState
     public string? FullName { get; set; }
     public string? Tla { get; set; }
     public string? TeamName { get; set; }
+    public string? TeamColor { get; set; }
     public int? Position { get; set; }
     public int? Line { get; set; }
     public int? GridPosition { get; set; }
@@ -39,5 +40,4 @@ public sealed class DriverRaceState
     public int? Brake { get; set; }
     public int? Drs { get; set; }
     public JsonObject? LastTelemetryPacket { get; set; }
-    public JsonArray TeamRadioCaptures { get; set; } = [];
 }

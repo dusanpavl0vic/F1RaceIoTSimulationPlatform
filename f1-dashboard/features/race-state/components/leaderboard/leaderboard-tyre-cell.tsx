@@ -29,12 +29,14 @@ const resolveTyreColor = (compound: string) => {
 };
 
 export function LeaderboardTyreCell({ row }: LeaderboardTyreCellProps) {
+  const tyreCompound = row.tyreCompound ?? "-";
+
   return (
     <Stack direction="row" spacing={1} alignItems="center">
       <Chip
         size="small"
-        label={row.tyreCompound}
-        color={resolveTyreColor(row.tyreCompound)}
+        label={tyreCompound}
+        color={resolveTyreColor(tyreCompound)}
         variant={row.tyreIsNew ? "filled" : "outlined"}
       />
       {row.currentStintLapCount ? (

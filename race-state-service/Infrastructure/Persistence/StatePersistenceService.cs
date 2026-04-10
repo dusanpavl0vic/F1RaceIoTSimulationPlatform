@@ -1,4 +1,5 @@
 using System.Text.Json;
+using F1.RaceState.Service.Application.Services;
 using F1.RaceState.Service.Domain.Models;
 using F1.RaceState.Service.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
@@ -7,14 +8,18 @@ namespace F1.RaceState.Service.Infrastructure.Persistence;
 
 public sealed class StatePersistenceService(
     IOptions<StatePersistenceOptions> options,
+    RaceStateViewFactory viewFactory,
     ILogger<StatePersistenceService> logger)
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private readonly StatePersistenceOptions _options = options.Value;
+    private readonly RaceStateViewFactory _viewFactory = viewFactory;
     private readonly ILogger<StatePersistenceService> _logger = logger;
 
     public bool IsEnabled => _options.Enabled;
     public bool AutoRestoreOnStartup => _options.AutoRestoreOnStartup;
+    public bool ClearFilesOnStartup => _options.ClearFilesOnStartup;
+    public bool ClearFilesOnShutdown => _options.ClearFilesOnShutdown;
 
     public async Task PersistAsync(RaceStateCheckpoint checkpoint, CancellationToken cancellationToken)
     {
@@ -28,7 +33,7 @@ public sealed class StatePersistenceService(
         Directory.CreateDirectory(Path.GetDirectoryName(checkpointPath)!);
 
         await WriteJsonAtomicallyAsync(checkpointPath, checkpoint, cancellationToken);
-        await WriteJsonAtomicallyAsync(currentStatePath, checkpoint.Snapshot, cancellationToken);
+        await WriteJsonAtomicallyAsync(currentStatePath, _viewFactory.BuildCurrentState(checkpoint.Snapshot), cancellationToken);
 
         _logger.LogDebug(
             "Persisted race state. checkpoint={CheckpointPath}, currentState={CurrentStatePath}, session={SessionId}, lastEventTime={LastEventTime:o}, lastSequence={LastSequence}.",
@@ -67,6 +72,18 @@ public sealed class StatePersistenceService(
         return checkpoint;
     }
 
+    public Task ClearAsync(CancellationToken cancellationToken)
+    {
+        if (!_options.Enabled)
+        {
+            return Task.CompletedTask;
+        }
+
+        DeleteIfExists(ResolveCheckpointPath());
+        DeleteIfExists(ResolveCurrentStatePath());
+        return Task.CompletedTask;
+    }
+
     public string ResolveCheckpointPath()
     {
         var storageDirectory = Path.IsPathRooted(_options.StorageDirectory)
@@ -94,5 +111,13 @@ public sealed class StatePersistenceService(
         }
 
         File.Move(tempPath, path, true);
+    }
+
+    private static void DeleteIfExists(string path)
+    {
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
     }
 }

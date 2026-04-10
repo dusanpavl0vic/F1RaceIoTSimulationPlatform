@@ -19,8 +19,6 @@ public sealed class NormalizerWorker(
     private readonly NormalizerStatusStore _statusStore = statusStore;
     private readonly ILogger<NormalizerWorker> _logger = logger;
 
-    private bool _publishingActivated;
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await _rawReplayEventSubscriber.ConnectAsync(stoppingToken);
@@ -44,23 +42,7 @@ public sealed class NormalizerWorker(
                     }
 
                     _statusStore.RecordConsumed(consumedEvent.Topic);
-
-                    if (_publishingActivated)
-                    {
-                        await PublishCanonicalEventsAsync(consumedEvent, stoppingToken);
-                        continue;
-                    }
-
-                    if (IsSessionStarted(consumedEvent))
-                    {
-                        _publishingActivated = true;
-                        _logger.LogInformation(
-                            "Canonical publishing activated for session {SessionId} at SessionStatus Started. Event time: {SessionStart}.",
-                            consumedEvent.Event.SessionId,
-                            consumedEvent.Event.EventTime);
-
-                        await PublishCanonicalEventsAsync(consumedEvent, stoppingToken);
-                    }
+                    await PublishCanonicalEventsAsync(consumedEvent, stoppingToken);
                 }
                 catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
                 {
@@ -108,8 +90,4 @@ public sealed class NormalizerWorker(
             _statusStore.RecordPublished(topic, 1);
         }
     }
-
-    private static bool IsSessionStarted(ConsumedRawEvent consumedEvent)
-        => string.Equals(consumedEvent.Event.SourceFeed, "SessionStatus", StringComparison.Ordinal)
-           && string.Equals(consumedEvent.Event.Payload["rawData"]?["Status"]?.ToString(), "Started", StringComparison.OrdinalIgnoreCase);
 }

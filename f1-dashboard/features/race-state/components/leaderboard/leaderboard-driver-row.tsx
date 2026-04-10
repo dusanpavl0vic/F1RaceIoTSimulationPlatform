@@ -13,13 +13,12 @@ export function LeaderboardDriverRow({
   isMobile,
   isTablet,
 }: LeaderboardDriverRowProps) {
-  const driverLabel = row.tla && row.tla !== "-" ? row.tla : row.driverName;
   const teamColor = row.teamColor ?? "#f5f5f5";
   const secondarySpeedReading =
-    row.speedReadings.ST ??
-    row.speedReadings.FL ??
-    row.speedReadings.I1 ??
-    row.speedReadings.I2 ??
+    (row.speeds?.ST as { Value?: string } | undefined)?.Value ??
+    (row.speeds?.FL as { Value?: string } | undefined)?.Value ??
+    (row.speeds?.I1 as { Value?: string } | undefined)?.Value ??
+    (row.speeds?.I2 as { Value?: string } | undefined)?.Value ??
     null;
 
   return (
@@ -37,12 +36,12 @@ export function LeaderboardDriverRow({
       }}
     >
       <TableCell sx={{ width: 60, color: row.position ? "#fff" : "rgba(255,255,255,0.45)" }}>
-        {row.position ?? "-"}
+        {row.gridPosition ?? row.line ?? "-"}
       </TableCell>
       <TableCell sx={{ minWidth: 150 }}>
         <Stack spacing={0.25}>
           <Typography fontWeight={800} sx={{ color: teamColor }}>
-            {driverLabel}
+            {row.driverLabel}
           </Typography>
           <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.55)" }}>
             #{row.driverNumber} {row.trackPosition?.isEstimated ? "estimated" : ""}
@@ -51,12 +50,12 @@ export function LeaderboardDriverRow({
       </TableCell>
 
       {!isMobile && (
-        <TableCell sx={{ color: "rgba(255,255,255,0.7)" }}>{row.teamName}</TableCell>
+        <TableCell sx={{ color: "rgba(255,255,255,0.7)" }}>{row.displayTeamName}</TableCell>
       )}
 
-      <TableCell>{row.gapToLeader}</TableCell>
+      <TableCell>{row.gapToLeader ?? "-"}</TableCell>
 
-      {!isTablet && <TableCell>{row.intervalToPositionAhead}</TableCell>}
+      {!isTablet && <TableCell>{row.intervalToPositionAhead ?? "-"}</TableCell>}
 
       {!isMobile && (
         <TableCell>
@@ -64,9 +63,9 @@ export function LeaderboardDriverRow({
         </TableCell>
       )}
 
-      <TableCell>{row.lastLapTime}</TableCell>
+      <TableCell>{row.lastLapTime ?? "-"}</TableCell>
 
-      {!isTablet && <TableCell>{row.bestLapTime}</TableCell>}
+      {!isTablet && <TableCell>{row.bestLapTime ?? "-"}</TableCell>}
 
       <TableCell>
         <Stack spacing={0.5}>

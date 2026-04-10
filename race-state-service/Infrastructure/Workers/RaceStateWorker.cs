@@ -119,4 +119,15 @@ public sealed class RaceStateWorker(
             await subscriber.PingAsync(cancellationToken);
         }
     }
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        if (_persistenceService.ClearFilesOnShutdown)
+        {
+            await _persistenceService.ClearAsync(cancellationToken);
+            _logger.LogInformation("Cleared persisted race state files on shutdown.");
+        }
+
+        await base.StopAsync(cancellationToken);
+    }
 }

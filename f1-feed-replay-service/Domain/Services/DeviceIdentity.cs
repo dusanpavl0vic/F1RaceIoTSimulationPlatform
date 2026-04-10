@@ -7,8 +7,7 @@ public static class DeviceIdentity
         {
             "SessionInfo" or "DriverList" or "LapCount" => "session-control-unit",
             "TrackStatus" => "track-control-unit",
-            "TimingData" => driverNumber is int driver ? $"timing-car-{driver}" : "timing-control-unit",
-            "WeatherData" => "weather-station-main",
+            "TimingData" or "TimingStats" => driverNumber is int driver ? $"timing-car-{driver}" : "timing-control-unit",
             "RaceControlMessages" => "race-control-unit",
             "CarData.z" => driverNumber is int telemetryDriver ? $"car-{telemetryDriver}" : "car-unknown",
             "Position.z" => driverNumber is int positionDriver ? $"position-car-{positionDriver}" : "position-tracker",

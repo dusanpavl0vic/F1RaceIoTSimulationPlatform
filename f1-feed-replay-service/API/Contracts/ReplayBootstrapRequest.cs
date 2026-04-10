@@ -4,8 +4,4 @@ public sealed record ReplayBootstrapRequest(
     string? IndexUrl,
     string? ConfigurationPath,
     string? SessionId,
-    string[]? FeedNames,
-    bool DownloadFeeds = true,
-    bool ForceDownload = true,
-    bool LoadAfterDownload = true,
-    bool StartAfterLoad = false);
+    string[]? FeedNames);

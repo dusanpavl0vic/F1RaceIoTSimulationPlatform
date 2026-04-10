@@ -1,5 +1,5 @@
 import { baseApi } from "@/features/race-state/api/base-api";
-import type { RaceDashboard } from "@/features/race-state/types/race-state";
+import type { RaceDashboard, RaceMapPosition } from "@/features/race-state/types/race-state";
 
 export const raceStateApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -13,9 +13,9 @@ export const raceStateApi = baseApi.injectEndpoints({
         response.drivers ?? response.Drivers ?? [],
       providesTags: ["RaceState"],
     }),
-    getMap: builder.query<RaceDashboard["mapPositions"], void>({
+    getMap: builder.query<RaceMapPosition[], void>({
       query: () => "/api/race-state/map",
-      transformResponse: (response: { positions?: RaceDashboard["mapPositions"]; Positions?: RaceDashboard["mapPositions"] }) =>
+      transformResponse: (response: { positions?: RaceMapPosition[]; Positions?: RaceMapPosition[] }) =>
         response.positions ?? response.Positions ?? [],
       providesTags: ["RaceState"],
     }),

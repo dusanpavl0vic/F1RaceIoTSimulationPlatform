@@ -14,7 +14,20 @@ public sealed class RaceStateRecoveryHostedService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_persistenceService.IsEnabled || !_persistenceService.AutoRestoreOnStartup)
+        if (!_persistenceService.IsEnabled)
+        {
+            _logger.LogInformation("Race state recovery is disabled.");
+            return;
+        }
+
+        if (_persistenceService.ClearFilesOnStartup)
+        {
+            await _persistenceService.ClearAsync(stoppingToken);
+            _logger.LogInformation("Cleared persisted race state files on startup.");
+            return;
+        }
+
+        if (!_persistenceService.AutoRestoreOnStartup)
         {
             _logger.LogInformation("Race state recovery is disabled.");
             return;

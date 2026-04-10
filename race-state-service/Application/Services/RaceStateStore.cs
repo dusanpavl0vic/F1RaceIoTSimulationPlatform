@@ -39,17 +39,15 @@ public sealed class RaceStateStore : IRaceStateStore
                 "session.info.updated" => ApplySessionInfo(canonicalEvent),
                 "track.status.updated" => ApplyTrackStatus(canonicalEvent),
                 "lap.count.updated" => ApplyLapCount(canonicalEvent),
-                "weather.updated" => ApplyWeather(canonicalEvent),
-                "race-control.message" => ApplyRaceControlMessage(canonicalEvent),
                 "driver.list.updated" => ApplyDriverMetadata(canonicalEvent),
                 "timing.driver.updated" => ApplyTiming(canonicalEvent),
+                "timing.stats.updated" => ApplyTimingStats(canonicalEvent),
                 "timing.app.updated" => ApplyTimingApp(canonicalEvent),
                 "tyres.current.updated" => ApplyCurrentTyres(canonicalEvent),
                 "tyres.stint.updated" => ApplyTyreStints(canonicalEvent),
                 "pitlane.time.updated" => ApplyPitLaneTime(canonicalEvent),
                 "car.position.updated" => ApplyPosition(canonicalEvent),
                 "car.telemetry.updated" => ApplyTelemetry(canonicalEvent),
-                "team-radio.capture" => ApplyTeamRadio(canonicalEvent),
                 _ => false
             };
 
@@ -122,29 +120,6 @@ public sealed class RaceStateStore : IRaceStateStore
         return true;
     }
 
-    private bool ApplyWeather(CanonicalEvent canonicalEvent)
-    {
-        _snapshot.Weather = canonicalEvent.Payload["data"]?.AsObject()?.DeepClone().AsObject();
-        return true;
-    }
-
-    private bool ApplyRaceControlMessage(CanonicalEvent canonicalEvent)
-    {
-        var payload = canonicalEvent.Payload["data"];
-        if (payload is null)
-        {
-            return false;
-        }
-
-        _snapshot.RaceControlMessages.Add(payload.DeepClone());
-        while (_snapshot.RaceControlMessages.Count > 25)
-        {
-            _snapshot.RaceControlMessages.RemoveAt(0);
-        }
-
-        return true;
-    }
-
     private bool ApplyDriverMetadata(CanonicalEvent canonicalEvent)
     {
         if (canonicalEvent.DriverNumber is not int driverNumber)
@@ -154,10 +129,15 @@ public sealed class RaceStateStore : IRaceStateStore
 
         var driver = GetOrCreateDriver(driverNumber);
         var payload = canonicalEvent.Payload["driver"];
-        driver.BroadcastName = payload?["BroadcastName"]?.ToString();
-        driver.FullName = payload?["FullName"]?.ToString() ?? payload?["Tla"]?.ToString();
-        driver.Tla = payload?["Tla"]?.ToString();
-        driver.TeamName = payload?["TeamName"]?.ToString();
+        driver.BroadcastName = FirstNonEmpty(payload?["BroadcastName"]?.ToString(), driver.BroadcastName);
+        driver.FullName = FirstNonEmpty(
+            payload?["FullName"]?.ToString()
+                ?? BuildFullName(payload?["FirstName"]?.ToString(), payload?["LastName"]?.ToString())
+                ?? payload?["Tla"]?.ToString(),
+            driver.FullName);
+        driver.Tla = FirstNonEmpty(payload?["Tla"]?.ToString(), driver.Tla);
+        driver.TeamName = FirstNonEmpty(payload?["TeamName"]?.ToString(), driver.TeamName);
+        driver.TeamColor = FirstNonEmpty(NormalizeColor(payload?["TeamColour"]?.ToString()), driver.TeamColor);
         driver.Line = FirstNonNull(TryParseInt(payload?["Line"]?.ToString()), driver.Line);
         return true;
     }
@@ -184,16 +164,28 @@ public sealed class RaceStateStore : IRaceStateStore
         driver.BestLapTime = FirstNonEmpty(timing?["BestLapTime"]?["Value"]?.ToString() ?? timing?["BestLapTime"]?.ToString(), driver.BestLapTime);
         driver.LastLapTime = FirstNonEmpty(timing?["LastLapTime"]?["Value"]?.ToString() ?? timing?["LastLapTime"]?.ToString(), driver.LastLapTime);
 
-        if (timing?["Sectors"] is JsonObject sectors)
+        driver.Sectors = MergeJsonObject(driver.Sectors, NormalizeSectors(timing?["Sectors"]));
+        driver.Speeds = MergeJsonObject(driver.Speeds, CloneAsObject(timing?["Speeds"]));
+
+        return true;
+    }
+
+    private bool ApplyTimingStats(CanonicalEvent canonicalEvent)
+    {
+        if (canonicalEvent.DriverNumber is not int driverNumber)
         {
-            driver.Sectors = sectors.DeepClone().AsObject();
+            return false;
         }
 
-        if (timing?["Speeds"] is JsonObject speeds)
-        {
-            driver.Speeds = speeds.DeepClone().AsObject();
-        }
-
+        var driver = GetOrCreateDriver(driverNumber);
+        var timingStats = canonicalEvent.Payload["timingStats"];
+        driver.Line = FirstNonNull(TryParseInt(timingStats?["Line"]?.ToString()), driver.Line);
+        driver.BestLapTime = FirstNonEmpty(
+            timingStats?["PersonalBestLapTime"]?["Value"]?.ToString()
+                ?? timingStats?["PersonalBestLapTime"]?.ToString(),
+            driver.BestLapTime);
+        driver.Sectors = MergeJsonObject(driver.Sectors, NormalizeSectors(timingStats?["BestSectors"]));
+        driver.Speeds = MergeJsonObject(driver.Speeds, CloneAsObject(timingStats?["BestSpeeds"]));
         return true;
     }
 
@@ -211,9 +203,9 @@ public sealed class RaceStateStore : IRaceStateStore
 
         if (payload?["Stints"] is JsonObject stints)
         {
-            driver.TyreStints = stints.DeepClone().AsObject();
-            driver.CurrentStintLapCount = ResolveCurrentStintLapCount(stints);
-            var currentStint = ResolveCurrentStint(stints);
+            driver.TyreStints = MergeJsonObject(driver.TyreStints, stints.DeepClone().AsObject());
+            driver.CurrentStintLapCount = ResolveCurrentStintLapCount(driver.TyreStints);
+            var currentStint = ResolveCurrentStint(driver.TyreStints);
             driver.TyreCompound = FirstNonEmpty(currentStint?["Compound"]?.ToString(), driver.TyreCompound);
             driver.TyreIsNew = TryParseBool(currentStint?["New"]?.ToString()) ?? driver.TyreIsNew;
         }
@@ -248,9 +240,9 @@ public sealed class RaceStateStore : IRaceStateStore
             return false;
         }
 
-        driver.TyreStints = stints.DeepClone().AsObject();
-        driver.CurrentStintLapCount = ResolveCurrentStintLapCount(stints);
-        var currentStint = ResolveCurrentStint(stints);
+        driver.TyreStints = MergeJsonObject(driver.TyreStints, stints.DeepClone().AsObject());
+        driver.CurrentStintLapCount = ResolveCurrentStintLapCount(driver.TyreStints);
+        var currentStint = ResolveCurrentStint(driver.TyreStints);
         driver.TyreCompound = FirstNonEmpty(currentStint?["Compound"]?.ToString(), driver.TyreCompound);
         driver.TyreIsNew = TryParseBool(currentStint?["New"]?.ToString()) ?? driver.TyreIsNew;
         return true;
@@ -319,35 +311,6 @@ public sealed class RaceStateStore : IRaceStateStore
         return true;
     }
 
-    private bool ApplyTeamRadio(CanonicalEvent canonicalEvent)
-    {
-        if (canonicalEvent.DriverNumber is not int driverNumber)
-        {
-            return false;
-        }
-
-        var capture = canonicalEvent.Payload["radio"]?.DeepClone();
-        if (capture is null)
-        {
-            return false;
-        }
-
-        var driver = GetOrCreateDriver(driverNumber);
-        driver.TeamRadioCaptures.Add(capture);
-        while (driver.TeamRadioCaptures.Count > 10)
-        {
-            driver.TeamRadioCaptures.RemoveAt(0);
-        }
-
-        _snapshot.TeamRadioCaptures.Add(capture);
-        while (_snapshot.TeamRadioCaptures.Count > 50)
-        {
-            _snapshot.TeamRadioCaptures.RemoveAt(0);
-        }
-
-        return true;
-    }
-
     private DriverRaceState GetOrCreateDriver(int driverNumber)
     {
         if (!_snapshot.Drivers.TryGetValue(driverNumber, out var driver))
@@ -372,9 +335,6 @@ public sealed class RaceStateStore : IRaceStateStore
             TrackStatusMessage = snapshot.TrackStatusMessage,
             CurrentLap = snapshot.CurrentLap,
             TotalLaps = snapshot.TotalLaps,
-            Weather = snapshot.Weather?.DeepClone().AsObject(),
-            RaceControlMessages = new JsonArray(snapshot.RaceControlMessages.Select(message => message?.DeepClone()).ToArray()),
-            TeamRadioCaptures = new JsonArray(snapshot.TeamRadioCaptures.Select(message => message?.DeepClone()).ToArray()),
             Drivers = snapshot.Drivers.ToDictionary(
                 entry => entry.Key,
                 entry => new DriverRaceState
@@ -384,6 +344,7 @@ public sealed class RaceStateStore : IRaceStateStore
                     FullName = entry.Value.FullName,
                     Tla = entry.Value.Tla,
                     TeamName = entry.Value.TeamName,
+                    TeamColor = entry.Value.TeamColor,
                     Position = entry.Value.Position,
                     Line = entry.Value.Line,
                     GridPosition = entry.Value.GridPosition,
@@ -413,8 +374,7 @@ public sealed class RaceStateStore : IRaceStateStore
                     Throttle = entry.Value.Throttle,
                     Brake = entry.Value.Brake,
                     Drs = entry.Value.Drs,
-                    LastTelemetryPacket = entry.Value.LastTelemetryPacket?.DeepClone().AsObject(),
-                    TeamRadioCaptures = new JsonArray(entry.Value.TeamRadioCaptures.Select(message => message?.DeepClone()).ToArray())
+                    LastTelemetryPacket = entry.Value.LastTelemetryPacket?.DeepClone().AsObject()
                 })
         };
     }
@@ -424,9 +384,30 @@ public sealed class RaceStateStore : IRaceStateStore
     private static DateTimeOffset? TryParseDateTimeOffset(string? value) => DateTimeOffset.TryParse(value, out var parsed) ? parsed : null;
     private static int? FirstNonNull(int? candidate, int? fallback) => candidate ?? fallback;
     private static string? FirstNonEmpty(string? candidate, string? fallback) => string.IsNullOrWhiteSpace(candidate) ? fallback : candidate;
-
-    private static JsonObject? ResolveCurrentStint(JsonObject stints)
+    private static string? NormalizeColor(string? rawColor)
     {
+        if (string.IsNullOrWhiteSpace(rawColor))
+        {
+            return null;
+        }
+
+        var color = rawColor.Trim();
+        return color.StartsWith('#') ? color : $"#{color}";
+    }
+
+    private static string? BuildFullName(string? firstName, string? lastName)
+    {
+        var combined = $"{firstName} {lastName}".Trim();
+        return string.IsNullOrWhiteSpace(combined) ? null : combined;
+    }
+
+    private static JsonObject? ResolveCurrentStint(JsonObject? stints)
+    {
+        if (stints is null)
+        {
+            return null;
+        }
+
         var best = stints
             .Select(pair => (Index: TryParseInt(pair.Key), Node: pair.Value as JsonObject))
             .Where(item => item.Index is not null && item.Node is not null)
@@ -436,8 +417,102 @@ public sealed class RaceStateStore : IRaceStateStore
         return best.Node;
     }
 
-    private static int? ResolveCurrentStintLapCount(JsonObject stints)
+    private static int? ResolveCurrentStintLapCount(JsonObject? stints)
         => FirstNonNull(TryParseInt(ResolveCurrentStint(stints)?["TotalLaps"]?.ToString()), null);
+
+    private static JsonObject? NormalizeSectors(JsonNode? sectorsNode)
+    {
+        if (sectorsNode is JsonArray sectorArray)
+        {
+            var normalized = new JsonObject();
+            for (var index = 0; index < sectorArray.Count; index++)
+            {
+                if (sectorArray[index] is not null)
+                {
+                    normalized[index.ToString()] = NormalizeSectorNode(sectorArray[index]!);
+                }
+            }
+
+            return normalized;
+        }
+
+        if (sectorsNode is JsonObject sectorsObject)
+        {
+            var normalized = new JsonObject();
+            foreach (var entry in sectorsObject)
+            {
+                if (entry.Value is not null)
+                {
+                    normalized[entry.Key] = NormalizeSectorNode(entry.Value);
+                }
+            }
+
+            return normalized;
+        }
+
+        return null;
+    }
+
+    private static JsonNode NormalizeSectorNode(JsonNode sectorNode)
+    {
+        if (sectorNode is not JsonObject sectorObject)
+        {
+            return sectorNode.DeepClone();
+        }
+
+        var normalized = sectorObject.DeepClone().AsObject();
+        if (normalized["Segments"] is JsonArray segmentsArray)
+        {
+            var normalizedSegments = new JsonObject();
+            for (var index = 0; index < segmentsArray.Count; index++)
+            {
+                normalizedSegments[index.ToString()] = segmentsArray[index]?.DeepClone();
+            }
+
+            normalized["Segments"] = normalizedSegments;
+        }
+
+        return normalized;
+    }
+
+    private static JsonObject? CloneAsObject(JsonNode? node)
+        => node is JsonObject jsonObject ? jsonObject.DeepClone().AsObject() : null;
+
+    private static JsonObject? MergeJsonObject(JsonObject? current, JsonObject? incoming)
+    {
+        if (incoming is null)
+        {
+            return current;
+        }
+
+        if (current is null)
+        {
+            return incoming.DeepClone().AsObject();
+        }
+
+        var merged = current.DeepClone().AsObject();
+        foreach (var entry in incoming)
+        {
+            merged[entry.Key] = MergeJsonNode(merged[entry.Key], entry.Value);
+        }
+
+        return merged;
+    }
+
+    private static JsonNode? MergeJsonNode(JsonNode? current, JsonNode? incoming)
+    {
+        if (incoming is null)
+        {
+            return current?.DeepClone();
+        }
+
+        if (current is JsonObject currentObject && incoming is JsonObject incomingObject)
+        {
+            return MergeJsonObject(currentObject, incomingObject);
+        }
+
+        return incoming.DeepClone();
+    }
 
     private static string? ResolveStateKey(CanonicalEvent canonicalEvent)
         => canonicalEvent.EventType switch
@@ -445,10 +520,9 @@ public sealed class RaceStateStore : IRaceStateStore
             "session.info.updated" => "session.info",
             "track.status.updated" => "track.status",
             "lap.count.updated" => "lap.count",
-            "weather.updated" => "weather",
-            "race-control.message" => "race-control",
             "driver.list.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.metadata:{driverNumber}",
             "timing.driver.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.timing:{driverNumber}",
+            "timing.stats.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.timing-stats:{driverNumber}",
             "timing.app.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.timing-app:{driverNumber}",
             "tyres.current.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.tyres-current:{driverNumber}",
             "tyres.stint.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.tyres-stint:{driverNumber}",
@@ -457,7 +531,6 @@ public sealed class RaceStateStore : IRaceStateStore
             "car.position.updated" => "driver.position:global",
             "car.telemetry.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.telemetry:{driverNumber}",
             "car.telemetry.updated" => "driver.telemetry:global",
-            "team-radio.capture" when canonicalEvent.DriverNumber is int driverNumber => $"driver.team-radio:{driverNumber}:{canonicalEvent.Sequence}",
             _ => null
         };
 }

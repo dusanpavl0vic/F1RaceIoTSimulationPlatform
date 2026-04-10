@@ -1,11 +1,18 @@
 import { Chip, Paper, Stack, Typography } from "@mui/material";
 import type { RaceStateWebSocketStatus } from "@/features/race-state/store/race-state-ui-slice";
+import type { RaceStateSessionView } from "@/features/race-state/types/race-state";
 
 type DashboardHeroProps = {
   wsStatus: RaceStateWebSocketStatus;
+  session: RaceStateSessionView | null | undefined;
 };
 
-export function DashboardHero({ wsStatus }: DashboardHeroProps) {
+export function DashboardHero({ wsStatus, session }: DashboardHeroProps) {
+  const lapLabel =
+    session?.currentLap && session?.totalLaps
+      ? `LAP ${session.currentLap}/${session.totalLaps}`
+      : "LAP -/-";
+
   return (
     <Paper
       className="hero-panel"
@@ -31,6 +38,14 @@ export function DashboardHero({ wsStatus }: DashboardHeroProps) {
         </div>
 
         <Stack direction="row" spacing={1.5} alignItems="center">
+          <Chip
+            label={lapLabel}
+            sx={{
+              backgroundColor: "rgba(255,255,255,0.08)",
+              color: "#fff",
+              fontWeight: 800,
+            }}
+          />
           <Chip
             color={wsStatus === "open" ? "success" : "default"}
             label={`WS: ${wsStatus}`}
