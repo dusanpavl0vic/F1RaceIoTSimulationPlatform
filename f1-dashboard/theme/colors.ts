@@ -1,0 +1,25 @@
+export const appColors = {
+  darkBlue: "#10233f",
+  darkBlueMuted: "#1a3357",
+  formulaRed: "#e10600",
+  formulaRedDark: "#8f0500",
+  carbonBlack: "#111111",
+  white: "#ffffff",
+  background: "#f6f3ee",
+  backgroundSoft: "#fffaf5",
+  backgroundDark: "#0d1320",
+  backgroundSoftDark: "#151d2f",
+  panel: "rgba(255, 252, 247, 0.94)",
+  panelDark: "rgba(21, 29, 47, 0.92)",
+  textPrimary: "#141414",
+  textMuted: "#65605a",
+  textPrimaryDark: "#f3f4f8",
+  textMutedDark: "#a7b0c3",
+  border: "rgba(20, 20, 20, 0.1)",
+  borderDark: "rgba(243, 244, 248, 0.12)",
+  shadow: "0 20px 45px rgba(20, 20, 20, 0.08)",
+  shadowDark: "0 20px 45px rgba(0, 0, 0, 0.28)",
+  accentShadow: "0 16px 30px rgba(225, 6, 0, 0.18)",
+} as const;
+
+export type AppColorToken = keyof typeof appColors;

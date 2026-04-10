@@ -17,6 +17,9 @@ npm run dev
 - feature struktura za `race-state`
 - osnovni WebSocket hook
 - provider u root layout-u
+- MUI tema i `styled-components` theme
+- globalni breakpoint helper-i i `useDevice` hook
+- device alias-i kroz `theme.devices.mobile`, `theme.devices.tablet`, `theme.devices.desktop`
 
 Struktura:
 
@@ -30,7 +33,9 @@ features/
     components/
     hooks/
     store/
+hooks/
 store/
+theme/
 ```
 
 Env primer:

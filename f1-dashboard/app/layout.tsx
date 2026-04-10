@@ -1,3 +1,4 @@
+import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
 import { AppShell } from "@/components/layout/app-shell";
 import { AppProvider } from "@/components/providers/app-provider";
 import type { Metadata } from "next";
@@ -15,9 +16,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AppProvider>
-          <AppShell>{children}</AppShell>
-        </AppProvider>
+        <AppRouterCacheProvider options={{ enableCssLayer: true }}>
+          <AppProvider>
+            <AppShell>{children}</AppShell>
+          </AppProvider>
+        </AppRouterCacheProvider>
       </body>
     </html>
   );

@@ -1,11 +1,15 @@
+@import url("https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap");
+
 :root {
-  --bg: #f4f1e8;
-  --ink: #121212;
-  --muted: #5f5a54;
+  --bg: #f6f3ee;
+  --ink: #141414;
+  --muted: #65605a;
   --panel: rgba(255, 252, 247, 0.94);
-  --line: rgba(18, 18, 18, 0.12);
-  --accent: #d42b30;
-  --shadow: 0 20px 45px rgba(18, 18, 18, 0.08);
+  --line: rgba(20, 20, 20, 0.1);
+  --accent: #e10600;
+  --accent-dark: #8f0500;
+  --carbon: #111111;
+  --shadow: 0 20px 45px rgba(20, 20, 20, 0.08);
 }
 
 * {
@@ -22,7 +26,7 @@ body {
     radial-gradient(circle at bottom right, rgba(0, 0, 0, 0.08), transparent 30%),
     var(--bg);
   color: var(--ink);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "Nunito", sans-serif;
 }
 
 body {
@@ -33,50 +37,37 @@ body {
     var(--bg);
 }
 
+a {
+  color: inherit;
+}
+
 .app-shell {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-container {
+  width: min(1240px, calc(100vw - 32px));
+  margin: 0 auto;
+  flex: 1;
 }
 
 .app-shell__content {
-  width: min(1240px, calc(100vw - 32px));
-  margin: 0 auto;
   padding-bottom: 56px;
 }
 
-.app-navigation {
-  width: min(1240px, calc(100vw - 32px));
-  margin: 0 auto;
-  padding: 18px 0 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-}
-
-.app-navigation__brand strong {
+.app-shell strong {
   display: block;
-  font-size: 1rem;
+  margin-bottom: 4px;
 }
 
-.app-navigation__list {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  list-style: none;
-  padding: 0;
+.app-shell p {
   margin: 0;
 }
 
-.app-navigation__link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(255, 252, 247, 0.76);
-  color: var(--ink);
-  text-decoration: none;
+.app-footer p {
+  color: var(--muted);
 }
 
 .page-shell {
@@ -160,18 +151,7 @@ body {
     padding-top: 12px;
   }
 
-  .app-navigation {
-    width: min(100vw - 20px, 100%);
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .app-navigation__list {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .app-shell__content {
+  .app-container {
     width: min(100vw - 20px, 100%);
   }
 
