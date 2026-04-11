@@ -57,7 +57,7 @@ const buildPlotPoints = (
       driverNumber: position.driverNumber,
       label: row?.driverLabel ?? position.driverName,
       teamColor: row?.teamColor ?? "#f5f5f5",
-      position: row?.gridPosition ?? row?.line ?? position.position,
+      position: row?.line ?? row?.position ?? row?.gridPosition ?? position.position,
       x: normalizedX,
       y: normalizedY,
       isEstimated: position.isEstimated,

@@ -40,4 +40,5 @@ public sealed class DriverRaceState
     public int? Brake { get; set; }
     public int? Drs { get; set; }
     public JsonObject? LastTelemetryPacket { get; set; }
+    public JsonObject FeedState { get; set; } = [];
 }

@@ -13,5 +13,6 @@ public sealed class RaceStateSnapshot
     public string? TrackStatusMessage { get; set; }
     public int? CurrentLap { get; set; }
     public int? TotalLaps { get; set; }
+    public JsonObject GlobalFeedState { get; set; } = [];
     public Dictionary<int, DriverRaceState> Drivers { get; set; } = new();
 }

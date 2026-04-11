@@ -35,8 +35,8 @@ export function LeaderboardDriverRow({
         },
       }}
     >
-      <TableCell sx={{ width: 60, color: row.position ? "#fff" : "rgba(255,255,255,0.45)" }}>
-        {row.gridPosition ?? row.line ?? "-"}
+      <TableCell sx={{ width: 60, color: row.line || row.position ? "#fff" : "rgba(255,255,255,0.45)" }}>
+        {row.line ?? row.position ?? row.gridPosition ?? "-"}
       </TableCell>
       <TableCell sx={{ minWidth: 150 }}>
         <Stack spacing={0.25}>

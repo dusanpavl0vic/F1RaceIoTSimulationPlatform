@@ -10,6 +10,26 @@ import type { RaceStateWebSocketStatus } from "@/features/race-state/store/race-
 const resolveDriverLabel = (broadcastName: string | null, fullName: string | null, tla: string | null, driverNumber: number) =>
   tla || broadcastName || fullName || `#${driverNumber}`;
 
+const resolveDisplayOrder = (position: number | null, line: number | null, gridPosition: number | null) =>
+  position ?? line ?? gridPosition;
+
+const normalizeTimingLabel = (value: string | null) => {
+  if (
+    !value ||
+    value.trim().length === 0 ||
+    value.trim().startsWith("{") ||
+    value.trim().toUpperCase().startsWith("LAP ")
+  ) {
+    return "-";
+  }
+
+  return value;
+};
+
+const resolveGapToLeader = (position: number | null, line: number | null, gridPosition: number | null, gapToLeader: string | null) => {
+  return position === 1 ? "leader" : normalizeTimingLabel(gapToLeader);
+};
+
 const resolvePitFlag = (inPit: boolean, pitOut: boolean) => {
   if (inPit) {
     return "IN";
@@ -31,6 +51,14 @@ const resolveStatusLabel = (status: number | null, retired: boolean, stopped: bo
     return "STOP";
   }
 
+  if (status === 80) {
+    return "PIT";
+  }
+
+  if (status === 64) {
+    return "RUN";
+  }
+
   return status?.toString() ?? "-";
 };
 
@@ -42,7 +70,7 @@ const toMapPosition = (row: RaceDashboardDriverRow): RaceMapPosition | null => {
   return {
     driverNumber: row.driverNumber,
     driverName: row.driverLabel,
-    position: row.gridPosition ?? row.line ?? row.position,
+    position: resolveDisplayOrder(row.position, row.line, row.gridPosition),
     status: row.currentTrackPosition.status ?? "-",
     x: row.currentTrackPosition.x ?? 0,
     y: row.currentTrackPosition.y ?? 0,
@@ -69,6 +97,11 @@ export const buildRaceDashboardRows = (
         trackPosition: null,
         driverLabel,
         displayTeamName: entry.teamName ?? "-",
+        gapToLeader: resolveGapToLeader(entry.position, entry.line, entry.gridPosition, entry.gapToLeader),
+        intervalToPositionAhead: entry.position === 1 ? "-" : normalizeTimingLabel(entry.intervalToPositionAhead),
+        lastLapTime: normalizeTimingLabel(entry.lastLapTime),
+        bestLapTime: normalizeTimingLabel(entry.bestLapTime),
+        tyreCompound: entry.tyreCompound ?? "-",
         pitFlag: resolvePitFlag(entry.inPit, entry.pitOut),
         statusLabel: resolveStatusLabel(entry.status, entry.retired, entry.stopped),
       };
@@ -79,11 +112,25 @@ export const buildRaceDashboardRows = (
       };
     })
     .sort((left, right) => {
-      const leftPosition = left.gridPosition ?? left.line ?? Number.MAX_SAFE_INTEGER;
-      const rightPosition = right.gridPosition ?? right.line ?? Number.MAX_SAFE_INTEGER;
+      const leftInactive = left.retired || left.stopped ? 1 : 0;
+      const rightInactive = right.retired || right.stopped ? 1 : 0;
+
+      if (leftInactive !== rightInactive) {
+        return leftInactive - rightInactive;
+      }
+
+      const leftPosition = left.position ?? Number.MAX_SAFE_INTEGER;
+      const rightPosition = right.position ?? Number.MAX_SAFE_INTEGER;
 
       if (leftPosition !== rightPosition) {
         return leftPosition - rightPosition;
+      }
+
+      const leftLine = left.line ?? Number.MAX_SAFE_INTEGER;
+      const rightLine = right.line ?? Number.MAX_SAFE_INTEGER;
+
+      if (leftLine !== rightLine) {
+        return leftLine - rightLine;
       }
 
       return left.driverNumber - right.driverNumber;

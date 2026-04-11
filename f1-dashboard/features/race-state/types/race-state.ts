@@ -92,42 +92,13 @@ export type SessionCard = {
   value: string;
 };
 
-export type RaceStateSnapshotMessage = {
-  type: "race.state.snapshot";
+export type RaceStateBroadcastMessage = {
+  type: "race.state.updated";
   sentAt: string;
   dashboard: RaceDashboard;
 };
 
-export type RaceStateChangeMessage = {
-  type: "race.state.change";
-  sentAt: string;
-  stateKey: string | null;
-  eventType: string;
-  sessionId: string;
-  driverNumber: number | null;
-  eventTime: string;
-  sequence: number;
-  dashboard: RaceDashboard;
-  session: RaceStateSessionView;
-  change:
-    | {
-        Section: "session";
-        Session: RaceStateSessionView;
-      }
-    | {
-        Section: "state";
-        DriverNumber: number | null;
-        EventType: string;
-      }
-    | {
-        Section: "snapshot";
-        Snapshot: unknown;
-      };
-};
-
-export type RaceStateWsMessage =
-  | RaceStateSnapshotMessage
-  | RaceStateChangeMessage;
+export type RaceStateWsMessage = RaceStateBroadcastMessage;
 
 export type RaceStateUiView = {
   wsStatus: string;

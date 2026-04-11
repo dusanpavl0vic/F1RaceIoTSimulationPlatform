@@ -1,8 +1,6 @@
 using System.Net.WebSockets;
 using System.Text.Json;
 using F1.RaceState.Service.Application.Contracts;
-using F1.Shared.Models;
-
 namespace F1.RaceState.Service.Application.Services;
 
 public sealed class RaceStateBroadcaster(
@@ -26,7 +24,7 @@ public sealed class RaceStateBroadcaster(
         }
 
         var initialPayload = JsonSerializer.SerializeToUtf8Bytes(
-            _viewFactory.BuildSnapshotMessage(_raceStateStore.GetSnapshot()),
+            _viewFactory.BuildBroadcastMessage(_raceStateStore.GetSnapshot()),
             SerializerOptions);
         await socket.SendAsync(initialPayload, WebSocketMessageType.Text, true, cancellationToken);
 
@@ -57,7 +55,7 @@ public sealed class RaceStateBroadcaster(
         }
     }
 
-    public async Task BroadcastChangeAsync(string? stateKey, CanonicalEvent canonicalEvent, CancellationToken cancellationToken)
+    public async Task BroadcastAsync(CancellationToken cancellationToken)
     {
         List<WebSocket> clients;
         lock (_gate)
@@ -67,21 +65,13 @@ public sealed class RaceStateBroadcaster(
 
         if (clients.Count == 0)
         {
-            _logger.LogDebug(
-                "Skipping WS change broadcast for {EventType} because there are no connected clients.",
-                canonicalEvent.EventType);
+            _logger.LogDebug("Skipping WS broadcast because there are no connected clients.");
             return;
         }
 
         var snapshot = _raceStateStore.GetSnapshot();
         var payload = JsonSerializer.SerializeToUtf8Bytes(
-            _viewFactory.BuildChangeMessage(
-                snapshot,
-                stateKey,
-                canonicalEvent.EventType,
-                canonicalEvent.DriverNumber,
-                canonicalEvent.EventTime,
-                canonicalEvent.Sequence),
+            _viewFactory.BuildBroadcastMessage(snapshot),
             SerializerOptions);
 
         foreach (var client in clients)
@@ -89,11 +79,6 @@ public sealed class RaceStateBroadcaster(
             await client.SendAsync(payload, WebSocketMessageType.Text, true, cancellationToken);
         }
 
-        _logger.LogDebug(
-            "Broadcast WS change for {EventType} stateKey={StateKey} driver={DriverNumber} to {ClientCount} clients.",
-            canonicalEvent.EventType,
-            stateKey,
-            canonicalEvent.DriverNumber,
-            clients.Count);
+        _logger.LogDebug("Broadcast WS state update to {ClientCount} clients.", clients.Count);
     }
 }

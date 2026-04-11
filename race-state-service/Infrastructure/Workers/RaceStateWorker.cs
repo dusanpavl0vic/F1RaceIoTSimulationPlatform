@@ -82,7 +82,7 @@ public sealed class RaceStateWorker(
                     }
 
                     await _persistenceService.PersistAsync(_raceStateStore.GetCheckpoint(), stoppingToken);
-                    await _broadcaster.BroadcastChangeAsync(applyResult.StateKey, canonicalEvent, stoppingToken);
+                    await _broadcaster.BroadcastAsync(stoppingToken);
 
                     _logger.LogInformation(
                         "Applied canonical event {EventType} for session {SessionId}. stateKey={StateKey}, driver={DriverNumber}, eventTime={EventTime:o}, sequence={Sequence}.",

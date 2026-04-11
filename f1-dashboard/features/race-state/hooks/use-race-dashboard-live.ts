@@ -43,8 +43,7 @@ export function useRaceDashboardLive() {
 
       try {
         const message = JSON.parse(event.data) as RaceStateWsMessage;
-
-        if (message.type === "race.state.snapshot" || message.type === "race.state.change") {
+        if (message.type === "race.state.updated") {
           setLiveDashboard(message.dashboard);
         }
       } catch {
