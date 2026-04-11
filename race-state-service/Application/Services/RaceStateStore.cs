@@ -44,9 +44,6 @@ public sealed class RaceStateStore : IRaceStateStore
                 "timing.app.updated" => ApplyTimingApp(canonicalEvent),
                 "tyres.current.updated" => ApplyCurrentTyres(canonicalEvent),
                 "tyres.stint.updated" => ApplyTyreStints(canonicalEvent),
-                "pitlane.time.updated" => ApplyPitLaneTime(canonicalEvent),
-                "car.position.updated" => ApplyPosition(canonicalEvent),
-                "car.telemetry.updated" => ApplyTelemetry(canonicalEvent),
                 _ => false
             };
 
@@ -180,16 +177,6 @@ public sealed class RaceStateStore : IRaceStateStore
         driver.BestLapTime = FirstNonEmpty(ExtractTimingValue(timing?["BestLapTime"]), driver.BestLapTime);
         driver.LastLapTime = FirstNonEmpty(ExtractTimingValue(timing?["LastLapTime"]), driver.LastLapTime);
 
-        if (timing?["Sectors"] is not null)
-        {
-            driver.Sectors = NormalizeSectors(timing["Sectors"]);
-        }
-
-        if (timing?["Speeds"] is JsonObject speeds)
-        {
-            driver.Speeds = speeds.DeepClone().AsObject();
-        }
-
         return true;
     }
 
@@ -204,15 +191,6 @@ public sealed class RaceStateStore : IRaceStateStore
         var timingStats = canonicalEvent.Payload["timingStats"];
         driver.Line = FirstNonNull(TryParseInt(timingStats?["Line"]?.ToString()), driver.Line);
         driver.BestLapTime = FirstNonEmpty(ExtractTimingValue(timingStats?["PersonalBestLapTime"]), driver.BestLapTime);
-        if (timingStats?["BestSectors"] is not null)
-        {
-            driver.Sectors = NormalizeSectors(timingStats["BestSectors"]);
-        }
-
-        if (timingStats?["BestSpeeds"] is JsonObject bestSpeeds)
-        {
-            driver.Speeds = bestSpeeds.DeepClone().AsObject();
-        }
         return true;
     }
 
@@ -272,69 +250,6 @@ public sealed class RaceStateStore : IRaceStateStore
         var currentStint = ResolveCurrentStint(driver.TyreStints);
         driver.TyreCompound = FirstNonEmpty(currentStint?["Compound"]?.ToString(), driver.TyreCompound);
         driver.TyreIsNew = TryParseBool(currentStint?["New"]?.ToString()) ?? driver.TyreIsNew;
-        return true;
-    }
-
-    private bool ApplyPitLaneTime(CanonicalEvent canonicalEvent)
-    {
-        if (canonicalEvent.DriverNumber is not int driverNumber)
-        {
-            return false;
-        }
-
-        var driver = GetOrCreateDriver(driverNumber);
-        var pit = canonicalEvent.Payload["pit"]?.DeepClone();
-        if (pit is null)
-        {
-            return false;
-        }
-
-        driver.PitStops.Add(pit);
-        while (driver.PitStops.Count > 10)
-        {
-            driver.PitStops.RemoveAt(0);
-        }
-
-        return true;
-    }
-
-    private bool ApplyPosition(CanonicalEvent canonicalEvent)
-    {
-        if (canonicalEvent.DriverNumber is not int driverNumber)
-        {
-            return false;
-        }
-
-        var driver = GetOrCreateDriver(driverNumber);
-        if (canonicalEvent.Payload["position"] is JsonObject position)
-        {
-            driver.CurrentTrackPosition = position.DeepClone().AsObject();
-            driver.CurrentTrackPositionTimestamp = TryParseDateTimeOffset(position["timestamp"]?.ToString()) ?? driver.CurrentTrackPositionTimestamp;
-        }
-
-        driver.LastPositionPacket = canonicalEvent.Payload.DeepClone().AsObject();
-        return true;
-    }
-
-    private bool ApplyTelemetry(CanonicalEvent canonicalEvent)
-    {
-        if (canonicalEvent.DriverNumber is not int driverNumber)
-        {
-            return false;
-        }
-
-        var driver = GetOrCreateDriver(driverNumber);
-        if (canonicalEvent.Payload["telemetry"] is JsonObject telemetry)
-        {
-            driver.Rpm = FirstNonNull(TryParseInt(telemetry["rpm"]?.ToString()), driver.Rpm);
-            driver.Speed = FirstNonNull(TryParseInt(telemetry["speed"]?.ToString()), driver.Speed);
-            driver.Gear = FirstNonNull(TryParseInt(telemetry["gear"]?.ToString()), driver.Gear);
-            driver.Throttle = FirstNonNull(TryParseInt(telemetry["throttle"]?.ToString() ?? telemetry["throttlePct"]?.ToString()), driver.Throttle);
-            driver.Brake = FirstNonNull(TryParseInt(telemetry["brake"]?.ToString()), driver.Brake);
-            driver.Drs = FirstNonNull(TryParseInt(telemetry["drs"]?.ToString()), driver.Drs);
-        }
-
-        driver.LastTelemetryPacket = canonicalEvent.Payload.DeepClone().AsObject();
         return true;
     }
 
@@ -432,7 +347,6 @@ public sealed class RaceStateStore : IRaceStateStore
 
     private static int? TryParseInt(string? value) => int.TryParse(value, out var parsed) ? parsed : null;
     private static bool? TryParseBool(string? value) => bool.TryParse(value, out var parsed) ? parsed : null;
-    private static DateTimeOffset? TryParseDateTimeOffset(string? value) => DateTimeOffset.TryParse(value, out var parsed) ? parsed : null;
     private static int? FirstNonNull(int? candidate, int? fallback) => candidate ?? fallback;
     private static string? FirstNonEmpty(string? candidate, string? fallback) => string.IsNullOrWhiteSpace(candidate) ? fallback : candidate;
 
@@ -487,100 +401,6 @@ public sealed class RaceStateStore : IRaceStateStore
     private static int? ResolveCurrentStintLapCount(JsonObject? stints)
         => FirstNonNull(TryParseInt(ResolveCurrentStint(stints)?["TotalLaps"]?.ToString()), null);
 
-    private static JsonObject? NormalizeSectors(JsonNode? sectorsNode)
-    {
-        if (sectorsNode is JsonArray sectorArray)
-        {
-            var normalized = new JsonObject();
-            for (var index = 0; index < sectorArray.Count; index++)
-            {
-                if (sectorArray[index] is not null)
-                {
-                    normalized[index.ToString()] = NormalizeSectorNode(sectorArray[index]!);
-                }
-            }
-
-            return normalized;
-        }
-
-        if (sectorsNode is JsonObject sectorsObject)
-        {
-            var normalized = new JsonObject();
-            foreach (var entry in sectorsObject)
-            {
-                if (entry.Value is not null)
-                {
-                    normalized[entry.Key] = NormalizeSectorNode(entry.Value);
-                }
-            }
-
-            return normalized;
-        }
-
-        return null;
-    }
-
-    private static JsonNode NormalizeSectorNode(JsonNode sectorNode)
-    {
-        if (sectorNode is not JsonObject sectorObject)
-        {
-            return sectorNode.DeepClone();
-        }
-
-        var normalized = sectorObject.DeepClone().AsObject();
-        if (normalized["Segments"] is JsonArray segmentsArray)
-        {
-            var normalizedSegments = new JsonObject();
-            for (var index = 0; index < segmentsArray.Count; index++)
-            {
-                normalizedSegments[index.ToString()] = segmentsArray[index]?.DeepClone();
-            }
-
-            normalized["Segments"] = normalizedSegments;
-        }
-
-        return normalized;
-    }
-
-    private static JsonObject? CloneAsObject(JsonNode? node)
-        => node is JsonObject jsonObject ? jsonObject.DeepClone().AsObject() : null;
-
-    private static JsonObject? MergeJsonObject(JsonObject? current, JsonObject? incoming)
-    {
-        if (incoming is null)
-        {
-            return current;
-        }
-
-        if (current is null)
-        {
-            return incoming.DeepClone().AsObject();
-        }
-
-        var merged = current.DeepClone().AsObject();
-        foreach (var entry in incoming)
-        {
-            merged[entry.Key] = MergeJsonNode(merged[entry.Key], entry.Value);
-        }
-
-        return merged;
-    }
-
-    private static JsonNode? MergeJsonNode(JsonNode? current, JsonNode? incoming)
-    {
-        if (incoming is null)
-        {
-            return current?.DeepClone();
-        }
-
-        if (current is JsonObject currentObject && incoming is JsonObject incomingObject)
-        {
-            return MergeJsonObject(currentObject, incomingObject);
-        }
-
-        return incoming.DeepClone();
-    }
-
     private static string? ResolveStateKey(CanonicalEvent canonicalEvent)
         => canonicalEvent.EventType switch
         {
@@ -593,11 +413,6 @@ public sealed class RaceStateStore : IRaceStateStore
             "timing.app.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.timing-app:{driverNumber}",
             "tyres.current.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.tyres-current:{driverNumber}",
             "tyres.stint.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.tyres-stint:{driverNumber}",
-            "pitlane.time.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.pitlane:{driverNumber}",
-            "car.position.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.position:{driverNumber}",
-            "car.position.updated" => "driver.position:global",
-            "car.telemetry.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.telemetry:{driverNumber}",
-            "car.telemetry.updated" => "driver.telemetry:global",
             _ => null
         };
 }

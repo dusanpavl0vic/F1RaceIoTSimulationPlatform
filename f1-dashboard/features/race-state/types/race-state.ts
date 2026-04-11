@@ -10,19 +10,6 @@ export type RaceStateSessionView = {
   updatedAt: string | null;
 };
 
-export type RaceDriverTrackPosition = {
-  timestamp: string | null;
-  status: string | null;
-  x: number | null;
-  y: number | null;
-  z: number | null;
-  rawX?: number | null;
-  rawY?: number | null;
-  rawZ?: number | null;
-  hasRawCoordinates?: boolean | null;
-  isEstimated?: boolean | null;
-};
-
 export type RaceLeaderboardEntry = {
   driverNumber: number;
   broadcastName: string | null;
@@ -43,39 +30,12 @@ export type RaceLeaderboardEntry = {
   status: number | null;
   bestLapTime: string | null;
   lastLapTime: string | null;
-  sectors: Record<string, unknown> | null;
-  speeds: Record<string, unknown> | null;
   tyreCompound: string | null;
   tyreIsNew: boolean | null;
-  tyreStints: Record<string, unknown> | null;
   currentStintLapCount: number | null;
-  pitStops: unknown[];
-  currentTrackPosition: RaceDriverTrackPosition | null;
-  currentTrackPositionTimestamp: string | null;
-  lastPositionPacket: Record<string, unknown> | null;
-  rpm: number | null;
-  speed: number | null;
-  gear: number | null;
-  throttle: number | null;
-  brake: number | null;
-  drs: number | null;
-  lastTelemetryPacket: Record<string, unknown> | null;
-};
-
-export type RaceMapPosition = {
-  driverNumber: number;
-  driverName: string;
-  position: number | null;
-  status: string;
-  x: number;
-  y: number;
-  z: number;
-  timestamp: string | null;
-  isEstimated: boolean;
 };
 
 export type RaceDashboardDriverRow = RaceLeaderboardEntry & {
-  trackPosition: RaceMapPosition | null;
   driverLabel: string;
   displayTeamName: string;
   pitFlag: string;
@@ -104,14 +64,11 @@ export type RaceCurrentDriverState = {
     intervalToPositionAhead: string | null;
     bestLapTime: string | null;
     lastLapTime: string | null;
-    sectors: Record<string, unknown> | null;
-    speeds: Record<string, unknown> | null;
   };
   tyres: {
     compound: string | null;
     isNew: boolean | null;
     currentStintLapCount: number | null;
-    stints: Record<string, unknown> | null;
   };
   race: {
     inPit: boolean;
@@ -119,19 +76,7 @@ export type RaceCurrentDriverState = {
     retired: boolean;
     stopped: boolean;
     status: number | null;
-    pitStops: unknown[];
   };
-  trackPosition: Record<string, unknown> | null;
-  telemetry: {
-    rpm: number | null;
-    speed: number | null;
-    gear: number | null;
-    throttle: number | null;
-    brake: number | null;
-    drs: number | null;
-    lastTelemetryPacket: Record<string, unknown> | null;
-  };
-  feeds: Record<string, unknown>;
 };
 
 export type RaceCurrentState = {
@@ -140,7 +85,6 @@ export type RaceCurrentState = {
   lastProcessedEventTime: string | null;
   lastProcessedSequence: number | null;
   session: Record<string, unknown>;
-  globalFeedState: Record<string, unknown>;
   drivers: Record<string, RaceCurrentDriverState>;
   leaderboard: RaceLeaderboardEntry[];
 };

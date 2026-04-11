@@ -1,7 +1,6 @@
 import type {
   RaceDashboard,
   RaceDashboardDriverRow,
-  RaceMapPosition,
   RaceStateSessionView,
   SessionCard,
 } from "@/features/race-state/types/race-state";
@@ -27,7 +26,7 @@ const normalizeTimingLabel = (value: string | null) => {
 };
 
 const resolveGapToLeader = (position: number | null, line: number | null, gridPosition: number | null, gapToLeader: string | null) => {
-  return position === 1 ? "leader" : normalizeTimingLabel(gapToLeader);
+  return resolveDisplayOrder(position, line, gridPosition) === 1 ? "leader" : normalizeTimingLabel(gapToLeader);
 };
 
 const resolvePitFlag = (inPit: boolean, pitOut: boolean) => {
@@ -62,24 +61,6 @@ const resolveStatusLabel = (status: number | null, retired: boolean, stopped: bo
   return status?.toString() ?? "-";
 };
 
-const toMapPosition = (row: RaceDashboardDriverRow): RaceMapPosition | null => {
-  if (!row.currentTrackPosition) {
-    return null;
-  }
-
-  return {
-    driverNumber: row.driverNumber,
-    driverName: row.driverLabel,
-    position: resolveDisplayOrder(row.position, row.line, row.gridPosition),
-    status: row.currentTrackPosition.status ?? "-",
-    x: row.currentTrackPosition.x ?? 0,
-    y: row.currentTrackPosition.y ?? 0,
-    z: row.currentTrackPosition.z ?? 0,
-    timestamp: row.currentTrackPosition.timestamp ?? row.currentTrackPositionTimestamp,
-    isEstimated: row.currentTrackPosition.isEstimated ?? false,
-  };
-};
-
 export const buildRaceDashboardRows = (
   dashboard: RaceDashboard
 ): RaceDashboardDriverRow[] => {
@@ -94,7 +75,6 @@ export const buildRaceDashboardRows = (
 
       const row: RaceDashboardDriverRow = {
         ...entry,
-        trackPosition: null,
         driverLabel,
         displayTeamName: entry.teamName ?? "-",
         gapToLeader: resolveGapToLeader(entry.position, entry.line, entry.gridPosition, entry.gapToLeader),
@@ -106,10 +86,7 @@ export const buildRaceDashboardRows = (
         statusLabel: resolveStatusLabel(entry.status, entry.retired, entry.stopped),
       };
 
-      return {
-        ...row,
-        trackPosition: toMapPosition(row),
-      };
+      return row;
     })
     .sort((left, right) => {
       const leftInactive = left.retired || left.stopped ? 1 : 0;
@@ -121,13 +98,12 @@ export const buildRaceDashboardRows = (
 
       const leftPosition = left.position ?? Number.MAX_SAFE_INTEGER;
       const rightPosition = right.position ?? Number.MAX_SAFE_INTEGER;
+      const leftLine = left.line ?? Number.MAX_SAFE_INTEGER;
+      const rightLine = right.line ?? Number.MAX_SAFE_INTEGER;
 
       if (leftPosition !== rightPosition) {
         return leftPosition - rightPosition;
       }
-
-      const leftLine = left.line ?? Number.MAX_SAFE_INTEGER;
-      const rightLine = right.line ?? Number.MAX_SAFE_INTEGER;
 
       if (leftLine !== rightLine) {
         return leftLine - rightLine;
@@ -136,13 +112,6 @@ export const buildRaceDashboardRows = (
       return left.driverNumber - right.driverNumber;
     });
 };
-
-export const buildTrackMapPositions = (
-  dashboard: RaceDashboard
-): RaceMapPosition[] =>
-  buildRaceDashboardRows(dashboard)
-    .map((row) => row.trackPosition)
-    .filter((position): position is RaceMapPosition => position !== null);
 
 export const buildSessionCards = (
   session: RaceStateSessionView | null | undefined,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import {
   useGetCurrentQuery,
   useGetDashboardQuery,
@@ -8,7 +8,6 @@ import {
 import { useWebSocket } from "@/features/race-state/hooks/use-websocket";
 import {
   buildRaceDashboardRows,
-  buildTrackMapPositions,
   buildSessionCards,
 } from "@/features/race-state/utils/dashboard-normalizers";
 import { selectRaceStateUi } from "@/features/race-state/store/selectors";
@@ -33,18 +32,21 @@ export function useRaceDashboardLive() {
   const currentStateQuery = useGetCurrentQuery();
   const [liveDashboard, setLiveDashboard] = useState<RaceDashboard | null>(null);
   const [liveCurrentState, setLiveCurrentState] = useState<RaceCurrentState | null>(null);
+  const [hasLiveWsState, setHasLiveWsState] = useState(false);
 
   useEffect(() => {
-    if (dashboardQuery.data) {
-      setLiveDashboard(dashboardQuery.data);
+    const nextDashboard = dashboardQuery.data;
+    if (nextDashboard && !hasLiveWsState) {
+      setLiveDashboard(nextDashboard);
     }
-  }, [dashboardQuery.data]);
+  }, [dashboardQuery.data, hasLiveWsState]);
 
   useEffect(() => {
-    if (currentStateQuery.data) {
-      setLiveCurrentState(currentStateQuery.data);
+    const nextCurrentState = currentStateQuery.data;
+    if (nextCurrentState && !hasLiveWsState) {
+      setLiveCurrentState(nextCurrentState);
     }
-  }, [currentStateQuery.data]);
+  }, [currentStateQuery.data, hasLiveWsState]);
 
   useWebSocket(defaultWsUrl, {
     onStatusChange: (status) => {
@@ -56,8 +58,11 @@ export function useRaceDashboardLive() {
       try {
         const message = JSON.parse(event.data) as RaceStateWsMessage;
         if (message.type === "race.state.updated") {
-          setLiveDashboard(message.dashboard);
-          setLiveCurrentState(message.currentState);
+          startTransition(() => {
+            setHasLiveWsState(true);
+            setLiveDashboard(message.dashboard);
+            setLiveCurrentState(message.currentState);
+          });
         }
       } catch {
         void dashboardQuery.refetch();
@@ -73,18 +78,24 @@ export function useRaceDashboardLive() {
 
   const leaderboardRows = useMemo(
     () =>
-      liveDashboard
-        ? buildRaceDashboardRows(liveDashboard)
-        : [],
-    [liveDashboard]
-  );
-
-  const mapPositions = useMemo(
-    () =>
-      liveDashboard
-        ? buildTrackMapPositions(liveDashboard)
-        : [],
-    [liveDashboard]
+      liveCurrentState
+        ? buildRaceDashboardRows({
+            session: liveDashboard?.session ?? {
+              sessionId: liveCurrentState.sessionId,
+              currentLap: null,
+              totalLaps: null,
+              trackStatusCode: null,
+              trackStatusMessage: null,
+              lastProcessedEventTime: liveCurrentState.lastProcessedEventTime,
+              lastProcessedSequence: liveCurrentState.lastProcessedSequence,
+              updatedAt: liveCurrentState.updatedAt,
+            },
+            leaderboard: liveCurrentState.leaderboard,
+          })
+        : liveDashboard
+          ? buildRaceDashboardRows(liveDashboard)
+          : [],
+    [liveCurrentState, liveDashboard]
   );
 
   return {
@@ -94,6 +105,5 @@ export function useRaceDashboardLive() {
     wsUi,
     sessionCards,
     leaderboardRows,
-    mapPositions,
   };
 }

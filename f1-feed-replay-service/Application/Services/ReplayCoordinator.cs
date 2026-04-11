@@ -31,6 +31,9 @@ public sealed class ReplayCoordinator(
     private readonly HashSet<string> _excludedFeeds = replayOptions.Value.ExcludedFeeds.Length == 0
         ? EmptyExcludedFeeds
         : new HashSet<string>(replayOptions.Value.ExcludedFeeds, StringComparer.Ordinal);
+    private readonly HashSet<string> _initialWindowFeeds = replayOptions.Value.InitialWindowFeedNames.Length == 0
+        ? new HashSet<string>(ReplayServiceOptions.DefaultInitialWindowFeedNames, StringComparer.Ordinal)
+        : new HashSet<string>(replayOptions.Value.InitialWindowFeedNames, StringComparer.Ordinal);
 
     private ReplaySession? _session;
     private ReplayRunState _state = ReplayRunState.Idle;
@@ -78,21 +81,26 @@ public sealed class ReplayCoordinator(
             .Select((evt, index) => evt with { StableOrder = index })
             .ToArray();
 
+        DateTimeOffset? sessionStartedAt = null;
+        DateTimeOffset? initialWindowEnd = null;
+
         if (_replayOptions.StartFromSessionStatusStarted)
         {
-            orderedEvents = FilterEventsFromSessionStart(
+            var filteredResult = FilterEventsFromSessionStart(
                 orderedEvents,
                 activeFeeds.Select(feed => feed.Name).ToHashSet(StringComparer.Ordinal));
+            orderedEvents = filteredResult.Events;
+            sessionStartedAt = filteredResult.SessionStartedAt;
+            initialWindowEnd = filteredResult.InitialWindowEnd;
         }
 
         var simulationStartReference = orderedEvents.Min(evt => evt.EventTime);
-        orderedEvents = orderedEvents
-            .Select((evt, index) => evt with
-            {
-                OffsetFromStart = evt.EventTime - simulationStartReference + TimeSpan.FromMilliseconds(configuration.StartOffsetMs),
-                StableOrder = index
-            })
-            .ToArray();
+        orderedEvents = BuildReplayOffsets(
+            orderedEvents,
+            simulationStartReference,
+            configuration.StartOffsetMs,
+            sessionStartedAt,
+            initialWindowEnd);
 
         _virtualClock.Reset(configuration.ReplaySpeed);
 
@@ -299,7 +307,7 @@ public sealed class ReplayCoordinator(
         return Task.CompletedTask;
     }
 
-    private ReplayEvent[] FilterEventsFromSessionStart(
+    private FilteredReplayEvents FilterEventsFromSessionStart(
         IReadOnlyList<ReplayEvent> orderedEvents,
         IReadOnlySet<string> activeFeedNames)
     {
@@ -308,38 +316,51 @@ public sealed class ReplayCoordinator(
         {
             _logger.LogWarning(
                 "Replay option StartFromSessionStatusStarted is enabled, but SessionStatus Started was not found. Using the full event stream.");
-            return orderedEvents.ToArray();
+            return new FilteredReplayEvents(orderedEvents.ToArray(), null, null);
         }
 
         var leadIn = TimeSpan.FromSeconds(Math.Max(0, _replayOptions.SessionStartLeadInSeconds));
         var replayStartTime = sessionStartedEvent.EventTime - leadIn;
+        var initialFeedWindow = TimeSpan.FromSeconds(Math.Max(0, _replayOptions.InitialFeedWindowSeconds));
+        var initialWindowEnd = orderedEvents.Min(evt => evt.EventTime) + initialFeedWindow;
+        if (initialWindowEnd > replayStartTime)
+        {
+            initialWindowEnd = replayStartTime;
+        }
+
+        var initialWindowEvents = orderedEvents
+            .Where(evt =>
+                evt.EventTime <= initialWindowEnd
+                && _initialWindowFeeds.Contains(evt.SourceFeed)
+                && activeFeedNames.Contains(evt.SourceFeed))
+            .ToArray();
 
         var filteredEvents = orderedEvents
             .Where(evt => evt.EventTime >= replayStartTime)
-            .Select((evt, index) => evt with { StableOrder = index })
             .ToArray();
 
         var bootstrapEvents = BuildBootstrapStateEvents(
             orderedEvents,
             activeFeedNames,
             replayStartTime);
-        if (bootstrapEvents.Length > 0)
-        {
-            filteredEvents = bootstrapEvents
-                .Concat(filteredEvents)
-                .OrderBy(evt => evt.EventTime)
-                .ThenBy(evt => evt.Sequence)
-                .ThenBy(evt => evt.StableOrder)
-                .Select((evt, index) => evt with { StableOrder = index })
-                .ToArray();
-        }
+
+        filteredEvents = initialWindowEvents
+            .Concat(bootstrapEvents)
+            .Concat(filteredEvents)
+            .OrderBy(evt => evt.EventTime)
+            .ThenBy(evt => evt.Sequence)
+            .ThenBy(evt => evt.StableOrder)
+            .Select((evt, index) => evt with { StableOrder = index })
+            .ToArray();
 
         var removedEventCount = orderedEvents.Count(evt => evt.EventTime < replayStartTime);
 
         _logger.LogInformation(
-            "Filtered replay events from {ReplayStartTime} using first SessionStatus Started at {SessionStart}. Lead-in: {LeadInSeconds}s. Added {BootstrapEventCount} bootstrap events. Removed {RemovedEventCount} pre-start events. Remaining events: {RemainingEventCount}.",
-            replayStartTime,
+            "Filtered replay events using first SessionStatus Started at {SessionStart}. Initial timing window: {InitialWindowSeconds}s until {InitialWindowEnd}. Replay resumes from {ReplayStartTime}. Lead-in: {LeadInSeconds}s. Added {BootstrapEventCount} bootstrap events. Removed {RemovedEventCount} pre-start events. Remaining events: {RemainingEventCount}.",
             sessionStartedEvent.EventTime,
+            _replayOptions.InitialFeedWindowSeconds,
+            initialWindowEnd,
+            replayStartTime,
             _replayOptions.SessionStartLeadInSeconds,
             bootstrapEvents.Length,
             removedEventCount,
@@ -350,12 +371,69 @@ public sealed class ReplayCoordinator(
             throw new InvalidOperationException("SessionStatus Started was found, but no replay events remained after filtering.");
         }
 
-        return filteredEvents;
+        return new FilteredReplayEvents(filteredEvents, sessionStartedEvent.EventTime, initialWindowEnd);
+    }
+
+    private static ReplayEvent[] BuildReplayOffsets(
+        IReadOnlyList<ReplayEvent> orderedEvents,
+        DateTimeOffset simulationStartReference,
+        int startOffsetMs,
+        DateTimeOffset? sessionStartedAt,
+        DateTimeOffset? initialWindowEnd)
+    {
+        var startOffset = TimeSpan.FromMilliseconds(startOffsetMs);
+        if (sessionStartedAt is null || initialWindowEnd is null || initialWindowEnd >= sessionStartedAt)
+        {
+            return orderedEvents
+                .Select((evt, index) => evt with
+                {
+                    OffsetFromStart = evt.EventTime - simulationStartReference + startOffset,
+                    StableOrder = index
+                })
+                .ToArray();
+        }
+
+        return orderedEvents
+            .Select((evt, index) => evt with
+            {
+                OffsetFromStart = ResolveCompressedOffset(
+                    evt.EventTime,
+                    simulationStartReference,
+                    initialWindowEnd.Value,
+                    sessionStartedAt.Value)
+                    + startOffset,
+                StableOrder = index
+            })
+            .ToArray();
+    }
+
+    private static TimeSpan ResolveCompressedOffset(
+        DateTimeOffset eventTime,
+        DateTimeOffset simulationStartReference,
+        DateTimeOffset initialWindowEnd,
+        DateTimeOffset sessionStartedAt)
+    {
+        if (eventTime <= initialWindowEnd)
+        {
+            return eventTime - simulationStartReference;
+        }
+
+        if (eventTime >= sessionStartedAt)
+        {
+            return (initialWindowEnd - simulationStartReference) + (eventTime - sessionStartedAt);
+        }
+
+        return initialWindowEnd - simulationStartReference;
     }
 
     private static bool IsSessionStartedEvent(ReplayEvent replayEvent)
         => string.Equals(replayEvent.SourceFeed, "SessionStatus", StringComparison.Ordinal)
            && string.Equals(replayEvent.Payload["Status"]?.ToString(), "Started", StringComparison.OrdinalIgnoreCase);
+
+    private sealed record FilteredReplayEvents(
+        ReplayEvent[] Events,
+        DateTimeOffset? SessionStartedAt,
+        DateTimeOffset? InitialWindowEnd);
 
     private static ReplayEvent[] BuildBootstrapStateEvents(
         IReadOnlyList<ReplayEvent> orderedEvents,

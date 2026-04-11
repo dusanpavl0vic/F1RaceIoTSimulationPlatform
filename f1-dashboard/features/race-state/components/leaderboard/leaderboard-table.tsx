@@ -47,7 +47,7 @@ export function LeaderboardTable({
           LEADERBOARD
         </Typography>
         <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)" }}>
-          Live poredak, gap, gume i telemetry pregled.
+          Live timing tabela: redosled, gap, gume i status u trci.
         </Typography>
       </Box>
 
@@ -81,7 +81,7 @@ export function LeaderboardTable({
               {!isMobile && <TableCell>Tyre</TableCell>}
               <TableCell>Last Lap</TableCell>
               {!isTablet && <TableCell>Best Lap</TableCell>}
-              <TableCell>Speed</TableCell>
+              <TableCell>Status</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>

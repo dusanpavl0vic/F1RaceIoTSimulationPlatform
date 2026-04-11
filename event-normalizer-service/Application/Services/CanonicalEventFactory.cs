@@ -18,7 +18,10 @@ public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCo
         "ExtrapolatedClock",
         "Heartbeat",
         "TeamRadio",
-        "WeatherDataSeries"
+        "WeatherDataSeries",
+        "PitLaneTimeCollection",
+        "Position.z",
+        "CarData.z"
     };
 
     private readonly IPositionCoordinateResolver _positionCoordinateResolver = positionCoordinateResolver;

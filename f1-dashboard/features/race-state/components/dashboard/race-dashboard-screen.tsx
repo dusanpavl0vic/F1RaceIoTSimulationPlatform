@@ -13,8 +13,6 @@ import { DashboardHero } from "@/features/race-state/components/dashboard/dashbo
 import { DashboardSessionCards } from "@/features/race-state/components/dashboard/dashboard-session-cards";
 import { LeaderboardTable } from "@/features/race-state/components/leaderboard/leaderboard-table";
 import { LiveTransportPanel } from "@/features/race-state/components/dashboard/live-transport-panel";
-import { RunningOrderPanel } from "@/features/race-state/components/dashboard/running-order-panel";
-import { TrackMapPanel } from "@/features/race-state/components/dashboard/track-map-panel";
 
 export function RaceDashboardScreen() {
   const { isMobile, isTablet } = useDevice();
@@ -26,7 +24,6 @@ export function RaceDashboardScreen() {
     wsUi,
     sessionCards,
     leaderboardRows,
-    mapPositions,
   } = useRaceDashboardLive();
 
   if (isLoading) {
@@ -60,7 +57,7 @@ export function RaceDashboardScreen() {
       <DashboardSessionCards cards={sessionCards} />
 
       <Grid container spacing={2.5} sx={{ mt: 0.5 }}>
-        <Grid size={{ xs: 12, xl: 8 }}>
+        <Grid size={{ xs: 12, xl: 9 }}>
           <LeaderboardTable
             rows={leaderboardRows}
             isMobile={isMobile}
@@ -68,10 +65,8 @@ export function RaceDashboardScreen() {
           />
         </Grid>
 
-        <Grid size={{ xs: 12, xl: 4 }}>
+        <Grid size={{ xs: 12, xl: 3 }}>
           <Stack spacing={2.5}>
-            <RunningOrderPanel rows={leaderboardRows} />
-            <TrackMapPanel rows={leaderboardRows} positions={mapPositions} />
             <LiveTransportPanel wsUi={wsUi} isFetching={isFetching} />
           </Stack>
         </Grid>
