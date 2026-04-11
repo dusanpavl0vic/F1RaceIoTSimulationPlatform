@@ -200,7 +200,7 @@ public sealed class RaceStateViewFactory
                 : 0;
 
     private static int? ResolvePrimaryLeaderboardSignal(DriverRaceState driver)
-        => driver.LapSeriesPosition ?? driver.Position ?? driver.GridPosition ?? driver.Line;
+        => driver.Position ?? driver.LapSeriesPosition ?? driver.GridPosition ?? driver.Line;
 
     private static bool IsDidNotStart(RaceStateSnapshot snapshot, DriverRaceState driver)
         => (snapshot.CurrentLap ?? 0) > 1
