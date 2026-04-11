@@ -46,11 +46,11 @@ export function RunningOrderPanel({ rows }: RunningOrderPanelProps) {
                 <Typography
                   sx={{
                     minWidth: 28,
-                    color: row.line || row.position || row.gridPosition ? "#fff" : "rgba(255,255,255,0.42)",
+                    color: row.position || row.gridPosition || row.line ? "#fff" : "rgba(255,255,255,0.42)",
                     fontWeight: 900,
                   }}
                 >
-                  {row.line ?? row.position ?? row.gridPosition ?? "-"}
+                  {row.position ?? row.gridPosition ?? row.line ?? "-"}
                 </Typography>
                 <Stack spacing={0.1}>
                   <Typography sx={{ color: teamColor, fontWeight: 900 }}>

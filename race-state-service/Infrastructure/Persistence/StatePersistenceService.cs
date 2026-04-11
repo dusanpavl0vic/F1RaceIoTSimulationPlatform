@@ -1,5 +1,4 @@
 using System.Text.Json;
-using F1.RaceState.Service.Application.Services;
 using F1.RaceState.Service.Domain.Models;
 using F1.RaceState.Service.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
@@ -8,12 +7,11 @@ namespace F1.RaceState.Service.Infrastructure.Persistence;
 
 public sealed class StatePersistenceService(
     IOptions<StatePersistenceOptions> options,
-    RaceStateViewFactory viewFactory,
     ILogger<StatePersistenceService> logger)
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+    private const string LegacyCurrentStateFileName = "current-race-state.json";
     private readonly StatePersistenceOptions _options = options.Value;
-    private readonly RaceStateViewFactory _viewFactory = viewFactory;
     private readonly ILogger<StatePersistenceService> _logger = logger;
 
     public bool IsEnabled => _options.Enabled;
@@ -29,16 +27,14 @@ public sealed class StatePersistenceService(
         }
 
         var checkpointPath = ResolveCheckpointPath();
-        var currentStatePath = ResolveCurrentStatePath();
         Directory.CreateDirectory(Path.GetDirectoryName(checkpointPath)!);
 
         await WriteJsonAtomicallyAsync(checkpointPath, checkpoint, cancellationToken);
-        await WriteJsonAtomicallyAsync(currentStatePath, _viewFactory.BuildCurrentState(checkpoint.Snapshot), cancellationToken);
+        DeleteIfExists(ResolveLegacyCurrentStatePath());
 
         _logger.LogDebug(
-            "Persisted race state. checkpoint={CheckpointPath}, currentState={CurrentStatePath}, session={SessionId}, lastEventTime={LastEventTime:o}, lastSequence={LastSequence}.",
+            "Persisted race state checkpoint. checkpoint={CheckpointPath}, session={SessionId}, lastEventTime={LastEventTime:o}, lastSequence={LastSequence}.",
             checkpointPath,
-            currentStatePath,
             checkpoint.Snapshot.SessionId,
             checkpoint.Snapshot.LastProcessedEventTime,
             checkpoint.Snapshot.LastProcessedSequence);
@@ -80,7 +76,7 @@ public sealed class StatePersistenceService(
         }
 
         DeleteIfExists(ResolveCheckpointPath());
-        DeleteIfExists(ResolveCurrentStatePath());
+        DeleteIfExists(ResolveLegacyCurrentStatePath());
         return Task.CompletedTask;
     }
 
@@ -93,13 +89,13 @@ public sealed class StatePersistenceService(
         return Path.Combine(storageDirectory, _options.CheckpointFileName);
     }
 
-    public string ResolveCurrentStatePath()
+    private string ResolveLegacyCurrentStatePath()
     {
         var storageDirectory = Path.IsPathRooted(_options.StorageDirectory)
             ? _options.StorageDirectory
             : Path.GetFullPath(_options.StorageDirectory);
 
-        return Path.Combine(storageDirectory, _options.CurrentStateFileName);
+        return Path.Combine(storageDirectory, LegacyCurrentStateFileName);
     }
 
     private static async Task WriteJsonAtomicallyAsync<T>(string path, T value, CancellationToken cancellationToken)

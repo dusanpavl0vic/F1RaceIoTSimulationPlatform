@@ -46,8 +46,13 @@ const resolveStatusLabel = (
   inPit: boolean,
   pitOut: boolean,
   retired: boolean,
-  stopped: boolean
+  stopped: boolean,
+  didNotStart: boolean
 ) => {
+  if (didNotStart) {
+    return "RET";
+  }
+
   if (retired) {
     return "RET";
   }
@@ -105,7 +110,14 @@ export const buildRaceDashboardRows = (
         bestLapTime: normalizeTimingLabel(entry.bestLapTime),
         tyreCompound: entry.tyreCompound ?? "-",
         pitFlag: resolvePitFlag(entry.inPit, entry.pitOut),
-        statusLabel: resolveStatusLabel(entry.status, entry.inPit, entry.pitOut, entry.retired, entry.stopped),
+        statusLabel: resolveStatusLabel(
+          entry.status,
+          entry.inPit,
+          entry.pitOut,
+          entry.retired,
+          entry.stopped,
+          entry.didNotStart
+        ),
       };
 
       return row;

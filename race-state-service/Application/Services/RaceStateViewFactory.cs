@@ -7,27 +7,32 @@ namespace F1.RaceState.Service.Application.Services;
 public sealed class RaceStateViewFactory
 {
     public IReadOnlyList<RaceLeaderboardEntryModel> BuildLeaderboard(RaceStateSnapshot snapshot)
+        => ComputeLeaderboard(snapshot);
+
+    private static IReadOnlyList<RaceLeaderboardEntryModel> ComputeLeaderboard(RaceStateSnapshot snapshot)
         => snapshot.Drivers.Values
-            .OrderBy(driver => IsInactiveDriver(driver) ? 1 : 0)
+            .OrderBy(driver => ResolveDriverActivityBucket(snapshot, driver))
+            .ThenBy(driver => ResolvePrimaryLeaderboardSignal(driver) ?? int.MaxValue)
             .ThenBy(driver => driver.Position ?? int.MaxValue)
+            .ThenBy(driver => driver.LapSeriesPosition ?? int.MaxValue)
             .ThenBy(driver => driver.GridPosition ?? int.MaxValue)
             .ThenBy(driver => driver.Line ?? int.MaxValue)
             .ThenBy(driver => driver.DriverNumber)
-            .Select(BuildLeaderboardEntry)
+            .Select((driver, index) => BuildLeaderboardEntry(snapshot, driver, index + 1))
             .ToArray();
 
     public IReadOnlyList<RaceMapPositionEntryModel> BuildMapPositions(RaceStateSnapshot snapshot)
         => snapshot.Drivers.Values
             .Where(driver => driver.CurrentTrackPosition is not null)
-            .OrderBy(driver => IsInactiveDriver(driver) ? 1 : 0)
-            .ThenBy(driver => driver.Position ?? int.MaxValue)
+            .OrderBy(driver => ResolveDriverActivityBucket(snapshot, driver))
+            .ThenBy(driver => ResolvePrimaryLeaderboardSignal(driver) ?? int.MaxValue)
             .ThenBy(driver => driver.GridPosition ?? int.MaxValue)
             .ThenBy(driver => driver.Line ?? int.MaxValue)
             .ThenBy(driver => driver.DriverNumber)
             .Select(driver => new RaceMapPositionEntryModel(
                 driver.DriverNumber,
                 ResolveDriverName(driver),
-                ResolveLeaderboardOrder(driver),
+                ResolvePrimaryLeaderboardSignal(driver),
                 driver.CurrentTrackPosition?["status"]?.ToString() ?? "-",
                 TryParseInt(driver.CurrentTrackPosition?["x"]?.ToString()) ?? 0,
                 TryParseInt(driver.CurrentTrackPosition?["y"]?.ToString()) ?? 0,
@@ -90,16 +95,23 @@ public sealed class RaceStateViewFactory
     private static JsonObject BuildDriverFeedState(RaceStateSnapshot snapshot)
     {
         var drivers = new JsonObject();
+        var displayPositions = ComputeLeaderboard(snapshot)
+            .ToDictionary(entry => entry.DriverNumber, entry => entry.Position);
+
         foreach (var driver in snapshot.Drivers.Values.OrderBy(driver => driver.DriverNumber))
         {
-            drivers[driver.DriverNumber.ToString()] = BuildDriverState(driver);
+            drivers[driver.DriverNumber.ToString()] = BuildDriverState(
+                snapshot,
+                driver,
+                displayPositions.GetValueOrDefault(driver.DriverNumber));
         }
 
         return drivers;
     }
 
-    private static JsonObject BuildDriverState(DriverRaceState driver)
-        => new()
+    private static JsonObject BuildDriverState(RaceStateSnapshot snapshot, DriverRaceState driver, int? displayPosition)
+    {
+        return new JsonObject
         {
             ["driverNumber"] = driver.DriverNumber,
             ["broadcastName"] = driver.BroadcastName,
@@ -112,12 +124,16 @@ public sealed class RaceStateViewFactory
             },
             ["leaderboard"] = new JsonObject
             {
-                ["position"] = driver.Position,
+                ["position"] = displayPosition,
+                ["displayPosition"] = displayPosition,
+                ["timingPosition"] = driver.Position,
                 ["line"] = driver.Line,
-                ["leaderboardOrder"] = ResolveLeaderboardOrder(driver),
+                ["leaderboardOrder"] = ResolvePrimaryLeaderboardSignal(driver),
                 ["gridPosition"] = driver.GridPosition,
-                ["gapToLeader"] = ResolveGapToLeader(driver),
-                ["intervalToPositionAhead"] = IsLeaderboardLeader(driver) ? "-" : NormalizeTimingLabel(driver.IntervalToPositionAhead),
+                ["lapSeriesPosition"] = driver.LapSeriesPosition,
+                ["lapsCompleted"] = driver.LapsCompleted,
+                ["gapToLeader"] = NormalizeTimingLabel(driver.GapToLeader),
+                ["intervalToPositionAhead"] = NormalizeTimingLabel(driver.IntervalToPositionAhead),
                 ["bestLapTime"] = NormalizeTimingLabel(driver.BestLapTime),
                 ["lastLapTime"] = NormalizeTimingLabel(driver.LastLapTime)
             },
@@ -133,34 +149,41 @@ public sealed class RaceStateViewFactory
                 ["pitOut"] = driver.PitOut,
                 ["retired"] = driver.Retired,
                 ["stopped"] = driver.Stopped,
+                ["didNotStart"] = IsDidNotStart(snapshot, driver),
                 ["status"] = driver.Status
             }
         };
+    }
 
-    private static RaceLeaderboardEntryModel BuildLeaderboardEntry(DriverRaceState driver)
-        => new(
+    private static RaceLeaderboardEntryModel BuildLeaderboardEntry(RaceStateSnapshot snapshot, DriverRaceState driver, int displayPosition)
+    {
+        var didNotStart = IsDidNotStart(snapshot, driver);
+
+        return new RaceLeaderboardEntryModel(
             driver.DriverNumber,
             driver.BroadcastName,
             driver.FullName,
             driver.Tla,
             driver.TeamName,
             driver.TeamColor,
-            driver.Position,
+            displayPosition,
             driver.Line,
             driver.GridPosition,
-            ResolveGapToLeader(driver),
-            NormalizeTimingLabel(driver.IntervalToPositionAhead),
+            ResolveGapToLeader(driver, displayPosition),
+            displayPosition == 1 ? "-" : NormalizeTimingLabel(driver.IntervalToPositionAhead),
             driver.IsCatchingAhead,
             driver.InPit,
             driver.PitOut,
             driver.Retired,
             driver.Stopped,
+            didNotStart,
             driver.Status,
-            driver.BestLapTime,
-            driver.LastLapTime,
+            NormalizeTimingLabel(driver.BestLapTime),
+            NormalizeTimingLabel(driver.LastLapTime),
             driver.TyreCompound,
             driver.TyreIsNew,
             driver.CurrentStintLapCount);
+    }
 
     private static string ResolveDriverName(DriverRaceState driver)
         => !string.IsNullOrWhiteSpace(driver.BroadcastName)
@@ -169,18 +192,29 @@ public sealed class RaceStateViewFactory
                 ? driver.FullName!
                 : driver.DriverNumber.ToString();
 
-    private static bool IsInactiveDriver(DriverRaceState driver)
-        => driver.Retired || driver.Stopped;
+    private static int ResolveDriverActivityBucket(RaceStateSnapshot snapshot, DriverRaceState driver)
+        => IsDidNotStart(snapshot, driver)
+            ? 2
+            : driver.Retired || driver.Stopped
+                ? 1
+                : 0;
 
-    private static int? ResolveLeaderboardOrder(DriverRaceState driver)
-        => driver.Position ?? driver.GridPosition ?? driver.Line;
+    private static int? ResolvePrimaryLeaderboardSignal(DriverRaceState driver)
+        => driver.LapSeriesPosition ?? driver.Position ?? driver.GridPosition ?? driver.Line;
 
-    private static bool IsLeaderboardLeader(DriverRaceState driver)
-        => driver.Position == 1
-            || (driver.Position is null && driver.GridPosition == 1 && string.IsNullOrWhiteSpace(driver.GapToLeader));
+    private static bool IsDidNotStart(RaceStateSnapshot snapshot, DriverRaceState driver)
+        => (snapshot.CurrentLap ?? 0) > 1
+            && !driver.Retired
+            && !driver.Stopped
+            && driver.LapsCompleted is null
+            && driver.LapSeriesPosition is null
+            && driver.GridPosition is not null
+            && driver.InPit
+            && !driver.PitOut
+            && driver.Status is 80 or 28;
 
-    private static string ResolveGapToLeader(DriverRaceState driver)
-        => IsLeaderboardLeader(driver)
+    private static string ResolveGapToLeader(DriverRaceState driver, int displayPosition)
+        => displayPosition == 1
             ? "leader"
             : NormalizeTimingLabel(driver.GapToLeader);
 

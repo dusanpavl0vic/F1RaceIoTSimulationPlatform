@@ -19,6 +19,7 @@ public sealed record RaceLeaderboardEntryModel(
     bool PitOut,
     bool Retired,
     bool Stopped,
+    bool DidNotStart,
     int? Status,
     string? BestLapTime,
     string? LastLapTime,

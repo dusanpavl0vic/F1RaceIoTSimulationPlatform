@@ -44,10 +44,9 @@ public sealed class RaceStateWorker(
 
         await subscriber.SubscribeAsync(_mqttOptions.TopicFilter, stoppingToken);
         _logger.LogInformation(
-            "Race state service subscribed to {TopicFilter}. checkpointPath={CheckpointPath}, currentStatePath={CurrentStatePath}.",
+            "Race state service subscribed to {TopicFilter}. checkpointPath={CheckpointPath}.",
             _mqttOptions.TopicFilter,
-            _persistenceService.ResolveCheckpointPath(),
-            _persistenceService.ResolveCurrentStatePath());
+            _persistenceService.ResolveCheckpointPath());
 
         var pingTask = RunPingLoopAsync(subscriber, stoppingToken);
 

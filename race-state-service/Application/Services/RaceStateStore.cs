@@ -42,6 +42,7 @@ public sealed class RaceStateStore : IRaceStateStore
                 "timing.driver.updated" => ApplyTiming(canonicalEvent),
                 "timing.stats.updated" => ApplyTimingStats(canonicalEvent),
                 "timing.app.updated" => ApplyTimingApp(canonicalEvent),
+                "lap.series.updated" => ApplyLapSeries(canonicalEvent),
                 "tyres.current.updated" => ApplyCurrentTyres(canonicalEvent),
                 "tyres.stint.updated" => ApplyTyreStints(canonicalEvent),
                 _ => false
@@ -226,6 +227,28 @@ public sealed class RaceStateStore : IRaceStateStore
         return true;
     }
 
+    private bool ApplyLapSeries(CanonicalEvent canonicalEvent)
+    {
+        if (canonicalEvent.DriverNumber is not int driverNumber)
+        {
+            return false;
+        }
+
+        var driver = GetOrCreateDriver(driverNumber);
+        var lapSeries = canonicalEvent.Payload["lapSeries"];
+        var (lapNumber, position) = ResolveLapSeriesPosition(lapSeries?["LapPosition"]);
+
+        driver.LapSeriesPosition = FirstNonNull(position, driver.LapSeriesPosition);
+        driver.LapsCompleted = FirstNonNull(driver.LapsCompleted, lapNumber) ?? lapNumber;
+
+        if (driver.Position is null && position is not null)
+        {
+            driver.Position = position;
+        }
+
+        return true;
+    }
+
     private bool ApplyCurrentTyres(CanonicalEvent canonicalEvent)
     {
         if (canonicalEvent.DriverNumber is not int driverNumber)
@@ -321,6 +344,8 @@ public sealed class RaceStateStore : IRaceStateStore
                     Position = entry.Value.Position,
                     Line = entry.Value.Line,
                     GridPosition = entry.Value.GridPosition,
+                    LapSeriesPosition = entry.Value.LapSeriesPosition,
+                    LapsCompleted = entry.Value.LapsCompleted,
                     GapToLeader = entry.Value.GapToLeader,
                     IntervalToPositionAhead = entry.Value.IntervalToPositionAhead,
                     IsCatchingAhead = entry.Value.IsCatchingAhead,
@@ -451,6 +476,31 @@ public sealed class RaceStateStore : IRaceStateStore
     private static bool IsPitOutStatus(int? status) => status is 96 or 608;
     private static bool IsRetiredStatus(int? status) => status == 92;
 
+    private static (int? LapNumber, int? Position) ResolveLapSeriesPosition(JsonNode? lapPositionNode)
+    {
+        if (lapPositionNode is JsonObject lapPositions)
+        {
+            var latest = lapPositions
+                .Select(entry => (LapNumber: TryParseInt(entry.Key), Position: TryParseInt(entry.Value?.ToString())))
+                .Where(entry => entry.LapNumber is not null && entry.Position is not null)
+                .OrderByDescending(entry => entry.LapNumber)
+                .FirstOrDefault();
+
+            return latest;
+        }
+
+        if (lapPositionNode is JsonArray lapPositionArray)
+        {
+            var position = lapPositionArray
+                .Select(node => TryParseInt(node?.ToString()))
+                .LastOrDefault(value => value is not null);
+
+            return (null, position);
+        }
+
+        return (null, null);
+    }
+
     private static string? NormalizeTimingInstruction(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -516,6 +566,7 @@ public sealed class RaceStateStore : IRaceStateStore
             "timing.driver.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.timing:{driverNumber}",
             "timing.stats.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.timing-stats:{driverNumber}",
             "timing.app.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.timing-app:{driverNumber}",
+            "lap.series.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.lap-series:{driverNumber}",
             "tyres.current.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.tyres-current:{driverNumber}",
             "tyres.stint.updated" when canonicalEvent.DriverNumber is int driverNumber => $"driver.tyres-stint:{driverNumber}",
             _ => null

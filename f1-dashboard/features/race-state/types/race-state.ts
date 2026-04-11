@@ -27,6 +27,7 @@ export type RaceLeaderboardEntry = {
   pitOut: boolean;
   retired: boolean;
   stopped: boolean;
+  didNotStart: boolean;
   status: number | null;
   bestLapTime: string | null;
   lastLapTime: string | null;
@@ -58,8 +59,12 @@ export type RaceCurrentDriverState = {
   };
   leaderboard: {
     position: number | null;
+    displayPosition: number | null;
+    timingPosition: number | null;
     line: number | null;
     gridPosition: number | null;
+    lapSeriesPosition: number | null;
+    lapsCompleted: number | null;
     gapToLeader: string | null;
     intervalToPositionAhead: string | null;
     bestLapTime: string | null;
@@ -75,6 +80,7 @@ export type RaceCurrentDriverState = {
     pitOut: boolean;
     retired: boolean;
     stopped: boolean;
+    didNotStart: boolean;
     status: number | null;
   };
 };

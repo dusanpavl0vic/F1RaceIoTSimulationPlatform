@@ -13,6 +13,8 @@ public sealed class DriverRaceState
     public int? Position { get; set; }
     public int? Line { get; set; }
     public int? GridPosition { get; set; }
+    public int? LapSeriesPosition { get; set; }
+    public int? LapsCompleted { get; set; }
     public string? GapToLeader { get; set; }
     public string? IntervalToPositionAhead { get; set; }
     public bool? IsCatchingAhead { get; set; }

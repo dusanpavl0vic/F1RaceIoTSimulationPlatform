@@ -11,6 +11,7 @@ public sealed class ReplayServiceOptions
         "TimingData",
         "TimingStats",
         "TimingAppData",
+        "LapSeries",
         "CurrentTyres",
         "TyreStintSeries"
     ];

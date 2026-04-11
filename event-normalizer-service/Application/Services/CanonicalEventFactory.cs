@@ -44,6 +44,7 @@ public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCo
             "TimingData" => CreateLineEvents(rawEvent, rawData["Lines"], "timing.driver.updated", "timing"),
             "TimingStats" => CreateLineEvents(rawEvent, rawData["Lines"], "timing.stats.updated", "timingStats"),
             "TimingAppData" => CreateLineEvents(rawEvent, rawData["Lines"], "timing.app.updated", "timingApp"),
+            "LapSeries" when rawData is JsonObject lapSeries => CreateDriverScopedEvents(rawEvent, lapSeries, "lap.series.updated", "lapSeries"),
             "DriverList" when rawData is JsonObject driverList => CreateDriverListEvents(rawEvent, driverList),
             "CurrentTyres" => CreateTyreEvents(rawEvent, rawData["Tyres"], "tyres.current.updated", "tyres"),
             "TyreStintSeries" => CreateTyreEvents(rawEvent, rawData["Stints"], "tyres.stint.updated", "stints"),
@@ -105,6 +106,20 @@ public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCo
     {
         var order = 0;
         return driverList.Select(entry => CreateDriverListEvent(rawEvent, entry.Key, entry.Value?.DeepClone(), ++order))
+            .Where(evt => evt is not null)
+            .Cast<CanonicalEvent>()
+            .ToArray();
+    }
+
+    private IReadOnlyList<CanonicalEvent> CreateDriverScopedEvents(
+        RawReplayEvent rawEvent,
+        JsonObject driverCollection,
+        string eventType,
+        string payloadProperty)
+    {
+        var order = 0;
+        return driverCollection
+            .Select(entry => CreateLineEvent(rawEvent, entry.Key, entry.Value?.DeepClone(), eventType, payloadProperty, ++order))
             .Where(evt => evt is not null)
             .Cast<CanonicalEvent>()
             .ToArray();
@@ -370,6 +385,7 @@ public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCo
             "TimingData" => "timing.driver.updated",
             "TimingStats" => "timing.stats.updated",
             "TimingAppData" => "timing.app.updated",
+            "LapSeries" => "lap.series.updated",
             "LapCount" => "lap.count.updated",
             "RaceControlMessages" => "race-control.message",
             "DriverList" => "driver.list.updated",
