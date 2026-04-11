@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useGetDashboardQuery } from "@/features/race-state/api/race-state-api";
+import {
+  useGetCurrentQuery,
+  useGetDashboardQuery,
+} from "@/features/race-state/api/race-state-api";
 import { useWebSocket } from "@/features/race-state/hooks/use-websocket";
 import {
   buildRaceDashboardRows,
@@ -14,6 +17,7 @@ import {
   setWsStatus,
 } from "@/features/race-state/store/race-state-ui-slice";
 import type {
+  RaceCurrentState,
   RaceDashboard,
   RaceStateWsMessage,
 } from "@/features/race-state/types/race-state";
@@ -26,13 +30,21 @@ export function useRaceDashboardLive() {
   const dispatch = useAppDispatch();
   const wsUi = useAppSelector(selectRaceStateUi);
   const dashboardQuery = useGetDashboardQuery();
+  const currentStateQuery = useGetCurrentQuery();
   const [liveDashboard, setLiveDashboard] = useState<RaceDashboard | null>(null);
+  const [liveCurrentState, setLiveCurrentState] = useState<RaceCurrentState | null>(null);
 
   useEffect(() => {
     if (dashboardQuery.data) {
       setLiveDashboard(dashboardQuery.data);
     }
   }, [dashboardQuery.data]);
+
+  useEffect(() => {
+    if (currentStateQuery.data) {
+      setLiveCurrentState(currentStateQuery.data);
+    }
+  }, [currentStateQuery.data]);
 
   useWebSocket(defaultWsUrl, {
     onStatusChange: (status) => {
@@ -45,9 +57,11 @@ export function useRaceDashboardLive() {
         const message = JSON.parse(event.data) as RaceStateWsMessage;
         if (message.type === "race.state.updated") {
           setLiveDashboard(message.dashboard);
+          setLiveCurrentState(message.currentState);
         }
       } catch {
         void dashboardQuery.refetch();
+        void currentStateQuery.refetch();
       }
     },
   });
@@ -76,6 +90,7 @@ export function useRaceDashboardLive() {
   return {
     ...dashboardQuery,
     data: liveDashboard,
+    currentState: liveCurrentState,
     wsUi,
     sessionCards,
     leaderboardRows,

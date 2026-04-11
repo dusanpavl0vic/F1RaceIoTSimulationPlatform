@@ -87,6 +87,64 @@ export type RaceDashboard = {
   leaderboard: RaceLeaderboardEntry[];
 };
 
+export type RaceCurrentDriverState = {
+  driverNumber: number;
+  broadcastName: string | null;
+  fullName: string | null;
+  tla: string | null;
+  team: {
+    name: string | null;
+    color: string | null;
+  };
+  leaderboard: {
+    position: number | null;
+    line: number | null;
+    gridPosition: number | null;
+    gapToLeader: string | null;
+    intervalToPositionAhead: string | null;
+    bestLapTime: string | null;
+    lastLapTime: string | null;
+    sectors: Record<string, unknown> | null;
+    speeds: Record<string, unknown> | null;
+  };
+  tyres: {
+    compound: string | null;
+    isNew: boolean | null;
+    currentStintLapCount: number | null;
+    stints: Record<string, unknown> | null;
+  };
+  race: {
+    inPit: boolean;
+    pitOut: boolean;
+    retired: boolean;
+    stopped: boolean;
+    status: number | null;
+    pitStops: unknown[];
+  };
+  trackPosition: Record<string, unknown> | null;
+  telemetry: {
+    rpm: number | null;
+    speed: number | null;
+    gear: number | null;
+    throttle: number | null;
+    brake: number | null;
+    drs: number | null;
+    lastTelemetryPacket: Record<string, unknown> | null;
+  };
+  feeds: Record<string, unknown>;
+};
+
+export type RaceCurrentState = {
+  sessionId: string | null;
+  updatedAt: string;
+  lastProcessedEventTime: string | null;
+  lastProcessedSequence: number | null;
+  session: Record<string, unknown>;
+  globalFeedState: Record<string, unknown>;
+  drivers: Record<string, RaceCurrentDriverState>;
+  leaderboard: RaceLeaderboardEntry[];
+};
+
 export type SessionCard = {
   label: string;
   value: string;
@@ -96,6 +154,7 @@ export type RaceStateBroadcastMessage = {
   type: "race.state.updated";
   sentAt: string;
   dashboard: RaceDashboard;
+  currentState: RaceCurrentState;
 };
 
 export type RaceStateWsMessage = RaceStateBroadcastMessage;
