@@ -34,13 +34,7 @@ public sealed class RaceStateController(IRaceStateStore raceStateStore, RaceStat
     public IActionResult GetDrivers()
     {
         var snapshot = raceStateStore.GetSnapshot();
-        var orderedDrivers = snapshot.Drivers.Values
-            .OrderBy(driver => driver.Retired || driver.Stopped ? 1 : 0)
-            .ThenBy(driver => driver.Position ?? int.MaxValue)
-            .ThenBy(driver => driver.Line ?? int.MaxValue)
-            .ThenBy(driver => driver.GridPosition ?? int.MaxValue)
-            .ThenBy(driver => driver.DriverNumber);
-        return Ok(orderedDrivers);
+        return Ok(viewFactory.BuildLeaderboard(snapshot));
     }
 
     [HttpGet("leaderboard")]

@@ -169,13 +169,21 @@ public sealed class RaceStateStore : IRaceStateStore
         driver.GapToLeader = FirstNonEmpty(ExtractTimingValue(timing?["GapToLeader"]), driver.GapToLeader);
         driver.IntervalToPositionAhead = FirstNonEmpty(ExtractTimingValue(timing?["IntervalToPositionAhead"]), driver.IntervalToPositionAhead);
         driver.IsCatchingAhead = TryParseBool(timing?["IntervalToPositionAhead"]?["Catching"]?.ToString());
-        driver.InPit = TryParseBool(timing?["InPit"]?.ToString()) ?? driver.InPit;
-        driver.PitOut = TryParseBool(timing?["PitOut"]?.ToString()) ?? driver.PitOut;
-        driver.Retired = TryParseBool(timing?["Retired"]?.ToString()) ?? driver.Retired;
-        driver.Stopped = TryParseBool(timing?["Stopped"]?.ToString()) ?? driver.Stopped;
-        driver.Status = FirstNonNull(TryParseInt(timing?["Status"]?.ToString()), driver.Status);
+        var explicitInPit = TryParseBool(timing?["InPit"]?.ToString());
+        var explicitPitOut = TryParseBool(timing?["PitOut"]?.ToString());
+        var explicitRetired = TryParseBool(timing?["Retired"]?.ToString());
+        var explicitStopped = TryParseBool(timing?["Stopped"]?.ToString());
+        var incomingStatus = TryParseInt(timing?["Status"]?.ToString());
+
+        driver.Retired = explicitRetired ?? driver.Retired;
+        driver.Stopped = explicitStopped ?? driver.Stopped;
+        driver.Status = FirstNonNull(incomingStatus, driver.Status);
         driver.BestLapTime = FirstNonEmpty(ExtractTimingValue(timing?["BestLapTime"]), driver.BestLapTime);
         driver.LastLapTime = FirstNonEmpty(ExtractTimingValue(timing?["LastLapTime"]), driver.LastLapTime);
+        driver.Sectors = MergeJsonObject(driver.Sectors, timing?["Sectors"]);
+        driver.Speeds = MergeJsonObject(driver.Speeds, timing?["Speeds"]);
+
+        ApplyDriverRaceStatus(driver, explicitInPit, explicitPitOut, incomingStatus, driver.LastLapTime);
 
         return true;
     }
@@ -380,6 +388,103 @@ public sealed class RaceStateStore : IRaceStateStore
     {
         var combined = $"{firstName} {lastName}".Trim();
         return string.IsNullOrWhiteSpace(combined) ? null : combined;
+    }
+
+    private static void ApplyDriverRaceStatus(
+        DriverRaceState driver,
+        bool? explicitInPit,
+        bool? explicitPitOut,
+        int? incomingStatus,
+        string? lastLapTime)
+    {
+        var effectiveStatus = incomingStatus ?? driver.Status;
+        var normalizedLastLapTime = NormalizeTimingInstruction(lastLapTime);
+
+        var inferredInPit = explicitInPit
+            ?? (normalizedLastLapTime == "PIT IN" ? (bool?)true : null)
+            ?? (IsPitStatus(effectiveStatus) ? (bool?)true : null);
+
+        var inferredPitOut = explicitPitOut
+            ?? (normalizedLastLapTime == "PIT OUT" ? (bool?)true : null)
+            ?? (IsPitOutStatus(effectiveStatus) ? (bool?)true : null);
+
+        if (IsRetiredStatus(effectiveStatus))
+        {
+            driver.Retired = true;
+            driver.Stopped = true;
+        }
+
+        if (driver.Retired || driver.Stopped)
+        {
+            driver.InPit = false;
+            driver.PitOut = false;
+            return;
+        }
+
+        if (inferredInPit == true)
+        {
+            driver.InPit = true;
+            driver.PitOut = false;
+            return;
+        }
+
+        if (inferredPitOut == true)
+        {
+            driver.InPit = false;
+            driver.PitOut = true;
+            return;
+        }
+
+        if (explicitInPit == false || IsRunningStatus(effectiveStatus))
+        {
+            driver.InPit = false;
+        }
+
+        if (explicitPitOut == false || IsRunningStatus(effectiveStatus) || explicitInPit == true)
+        {
+            driver.PitOut = false;
+        }
+    }
+
+    private static bool IsRunningStatus(int? status) => status == 64;
+    private static bool IsPitStatus(int? status) => status == 80;
+    private static bool IsPitOutStatus(int? status) => status is 96 or 608;
+    private static bool IsRetiredStatus(int? status) => status == 92;
+
+    private static string? NormalizeTimingInstruction(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Trim().ToUpperInvariant();
+    }
+
+    private static JsonObject? MergeJsonObject(JsonObject? current, JsonNode? updateNode)
+    {
+        if (updateNode is not JsonObject update)
+        {
+            return current;
+        }
+
+        var result = current?.DeepClone().AsObject() ?? new JsonObject();
+        foreach (var property in update)
+        {
+            if (property.Value is JsonObject childUpdate)
+            {
+                var childCurrent = result[property.Key] as JsonObject;
+                result[property.Key] = MergeJsonObject(childCurrent, childUpdate);
+                continue;
+            }
+
+            if (property.Value is not null)
+            {
+                result[property.Key] = property.Value.DeepClone();
+            }
+        }
+
+        return result;
     }
 
     private static JsonObject? ResolveCurrentStint(JsonObject? stints)

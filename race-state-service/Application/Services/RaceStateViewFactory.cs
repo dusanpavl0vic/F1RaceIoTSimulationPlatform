@@ -10,8 +10,8 @@ public sealed class RaceStateViewFactory
         => snapshot.Drivers.Values
             .OrderBy(driver => IsInactiveDriver(driver) ? 1 : 0)
             .ThenBy(driver => driver.Position ?? int.MaxValue)
-            .ThenBy(ResolveLeaderboardOrder)
             .ThenBy(driver => driver.GridPosition ?? int.MaxValue)
+            .ThenBy(driver => driver.Line ?? int.MaxValue)
             .ThenBy(driver => driver.DriverNumber)
             .Select(BuildLeaderboardEntry)
             .ToArray();
@@ -21,12 +21,13 @@ public sealed class RaceStateViewFactory
             .Where(driver => driver.CurrentTrackPosition is not null)
             .OrderBy(driver => IsInactiveDriver(driver) ? 1 : 0)
             .ThenBy(driver => driver.Position ?? int.MaxValue)
-            .ThenBy(ResolveLeaderboardOrder)
+            .ThenBy(driver => driver.GridPosition ?? int.MaxValue)
+            .ThenBy(driver => driver.Line ?? int.MaxValue)
             .ThenBy(driver => driver.DriverNumber)
             .Select(driver => new RaceMapPositionEntryModel(
                 driver.DriverNumber,
                 ResolveDriverName(driver),
-                driver.Position ?? ResolveLeaderboardOrder(driver),
+                ResolveLeaderboardOrder(driver),
                 driver.CurrentTrackPosition?["status"]?.ToString() ?? "-",
                 TryParseInt(driver.CurrentTrackPosition?["x"]?.ToString()) ?? 0,
                 TryParseInt(driver.CurrentTrackPosition?["y"]?.ToString()) ?? 0,
@@ -113,7 +114,7 @@ public sealed class RaceStateViewFactory
             {
                 ["position"] = driver.Position,
                 ["line"] = driver.Line,
-                ["leaderboardOrder"] = driver.Position ?? ResolveLeaderboardOrder(driver),
+                ["leaderboardOrder"] = ResolveLeaderboardOrder(driver),
                 ["gridPosition"] = driver.GridPosition,
                 ["gapToLeader"] = ResolveGapToLeader(driver),
                 ["intervalToPositionAhead"] = IsLeaderboardLeader(driver) ? "-" : NormalizeTimingLabel(driver.IntervalToPositionAhead),
@@ -172,10 +173,11 @@ public sealed class RaceStateViewFactory
         => driver.Retired || driver.Stopped;
 
     private static int? ResolveLeaderboardOrder(DriverRaceState driver)
-        => driver.Position ?? driver.Line ?? driver.GridPosition;
+        => driver.Position ?? driver.GridPosition ?? driver.Line;
 
     private static bool IsLeaderboardLeader(DriverRaceState driver)
-        => ResolveLeaderboardOrder(driver) == 1;
+        => driver.Position == 1
+            || (driver.Position is null && driver.GridPosition == 1 && string.IsNullOrWhiteSpace(driver.GapToLeader));
 
     private static string ResolveGapToLeader(DriverRaceState driver)
         => IsLeaderboardLeader(driver)

@@ -10,7 +10,7 @@ const resolveDriverLabel = (broadcastName: string | null, fullName: string | nul
   tla || broadcastName || fullName || `#${driverNumber}`;
 
 const resolveDisplayOrder = (position: number | null, line: number | null, gridPosition: number | null) =>
-  position ?? line ?? gridPosition;
+  position ?? gridPosition ?? line;
 
 const normalizeTimingLabel = (value: string | null) => {
   if (
@@ -41,7 +41,13 @@ const resolvePitFlag = (inPit: boolean, pitOut: boolean) => {
   return "-";
 };
 
-const resolveStatusLabel = (status: number | null, retired: boolean, stopped: boolean) => {
+const resolveStatusLabel = (
+  status: number | null,
+  inPit: boolean,
+  pitOut: boolean,
+  retired: boolean,
+  stopped: boolean
+) => {
   if (retired) {
     return "RET";
   }
@@ -50,15 +56,31 @@ const resolveStatusLabel = (status: number | null, retired: boolean, stopped: bo
     return "STOP";
   }
 
+  if (inPit) {
+    return "PIT";
+  }
+
+  if (pitOut) {
+    return "OUT";
+  }
+
   if (status === 80) {
     return "PIT";
+  }
+
+  if (status === 96 || status === 608) {
+    return "OUT";
+  }
+
+  if (status === 92) {
+    return "RET";
   }
 
   if (status === 64) {
     return "RUN";
   }
 
-  return status?.toString() ?? "-";
+  return "-";
 };
 
 export const buildRaceDashboardRows = (
@@ -83,33 +105,10 @@ export const buildRaceDashboardRows = (
         bestLapTime: normalizeTimingLabel(entry.bestLapTime),
         tyreCompound: entry.tyreCompound ?? "-",
         pitFlag: resolvePitFlag(entry.inPit, entry.pitOut),
-        statusLabel: resolveStatusLabel(entry.status, entry.retired, entry.stopped),
+        statusLabel: resolveStatusLabel(entry.status, entry.inPit, entry.pitOut, entry.retired, entry.stopped),
       };
 
       return row;
-    })
-    .sort((left, right) => {
-      const leftInactive = left.retired || left.stopped ? 1 : 0;
-      const rightInactive = right.retired || right.stopped ? 1 : 0;
-
-      if (leftInactive !== rightInactive) {
-        return leftInactive - rightInactive;
-      }
-
-      const leftPosition = left.position ?? Number.MAX_SAFE_INTEGER;
-      const rightPosition = right.position ?? Number.MAX_SAFE_INTEGER;
-      const leftLine = left.line ?? Number.MAX_SAFE_INTEGER;
-      const rightLine = right.line ?? Number.MAX_SAFE_INTEGER;
-
-      if (leftPosition !== rightPosition) {
-        return leftPosition - rightPosition;
-      }
-
-      if (leftLine !== rightLine) {
-        return leftLine - rightLine;
-      }
-
-      return left.driverNumber - right.driverNumber;
     });
 };
 
