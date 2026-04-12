@@ -50,6 +50,55 @@ services:
       - ./docker/race-state-data:/data
     restart: unless-stopped
 
+  telemetry-analytics-service:
+    build:
+      context: .
+      dockerfile: ./telemetry-analytics-service/Dockerfile
+    container_name: f1-telemetry-analytics-service
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_started
+    ports:
+      - "8083:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      DOTNET_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    container_name: f1-postgres
+    environment:
+      POSTGRES_DB: f1_telemetry
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U f1 -d f1_telemetry"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: f1-influxdb
+    environment:
+      DOCKER_INFLUXDB_INIT_ORG: f1-platform
+      DOCKER_INFLUXDB_INIT_BUCKET: f1-telemetry
+    ports:
+      - "8086:8086"
+    volumes:
+      - ./docker/influxdb-data:/var/lib/influxdb2
+      - ./docker/influxdb-config:/etc/influxdb2
+    restart: unless-stopped
+
   mosquitto:
     image: eclipse-mosquitto:2
     container_name: f1-mosquitto

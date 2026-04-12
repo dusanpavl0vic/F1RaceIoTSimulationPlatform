@@ -72,3 +72,4 @@ nunit-*.xml
 docker/
 docs/
 new-models/
+.claude/

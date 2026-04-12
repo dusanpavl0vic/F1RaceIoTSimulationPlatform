@@ -18,10 +18,7 @@ public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCo
         "ExtrapolatedClock",
         "Heartbeat",
         "TeamRadio",
-        "WeatherDataSeries",
-        "PitLaneTimeCollection",
-        "Position.z",
-        "CarData.z"
+        "WeatherDataSeries"
     };
 
     private readonly IPositionCoordinateResolver _positionCoordinateResolver = positionCoordinateResolver;
@@ -381,6 +378,7 @@ public sealed class CanonicalEventFactory(IPositionCoordinateResolver positionCo
         => sourceFeed switch
         {
             "SessionInfo" => "session.info.updated",
+            "SessionStatus" => "session.status.updated",
             "TrackStatus" => "track.status.updated",
             "TimingData" => "timing.driver.updated",
             "TimingStats" => "timing.stats.updated",

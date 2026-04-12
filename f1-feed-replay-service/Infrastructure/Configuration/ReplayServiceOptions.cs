@@ -5,6 +5,7 @@ public sealed class ReplayServiceOptions
     public static readonly string[] DefaultInitialWindowFeedNames =
     [
         "SessionInfo",
+        "SessionStatus",
         "TrackStatus",
         "LapCount",
         "DriverList",
@@ -13,7 +14,8 @@ public sealed class ReplayServiceOptions
         "TimingAppData",
         "LapSeries",
         "CurrentTyres",
-        "TyreStintSeries"
+        "TyreStintSeries",
+        "RaceControlMessages"
     ];
 
     public const string SectionName = "Replay";

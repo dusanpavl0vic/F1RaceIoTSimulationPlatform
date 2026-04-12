@@ -1,0 +1,116 @@
+syntax = "proto3";
+
+option csharp_namespace = "F1.TelemetryAnalytics.Service.Grpc";
+
+package telemetryanalytics;
+
+service TelemetryAnalytics {
+  rpc GetDriverLapSummaries (DriverLapSummariesRequest) returns (DriverLapSummariesResponse);
+  rpc GetDriverSegmentBuckets (DriverSegmentBucketsRequest) returns (DriverSegmentBucketsResponse);
+  rpc CompareDriversOnLap (CompareDriversOnLapRequest) returns (CompareDriversOnLapResponse);
+}
+
+message DriverLapSummariesRequest {
+  string session_id = 1;
+  int32 driver_number = 2;
+}
+
+message DriverLapSummary {
+  int32 lap_number = 1;
+  int32 position = 2;
+  string lap_time = 3;
+  int32 lap_time_ms = 4;
+  string best_lap_time = 5;
+  int32 best_lap_time_ms = 6;
+  string sector1 = 7;
+  int32 sector1_ms = 8;
+  string sector2 = 9;
+  int32 sector2_ms = 10;
+  string sector3 = 11;
+  int32 sector3_ms = 12;
+  string compound = 13;
+  int32 tyre_laps = 14;
+  int32 stint_number = 15;
+  double avg_speed = 16;
+  int32 max_speed = 17;
+  double throttle_pct = 18;
+  double brake_pct = 19;
+  double drs_pct = 20;
+}
+
+message DriverLapSummariesResponse {
+  string session_id = 1;
+  int32 driver_number = 2;
+  string driver_name = 3;
+  repeated DriverLapSummary laps = 4;
+}
+
+message DriverSegmentBucketsRequest {
+  string session_id = 1;
+  int32 driver_number = 2;
+  int32 lap_number = 3;
+  int32 bucket_count = 4;
+}
+
+message SegmentBucket {
+  int32 bucket_index = 1;
+  double start_progress_pct = 2;
+  double end_progress_pct = 3;
+  double avg_speed = 4;
+  int32 max_speed = 5;
+  double avg_throttle_pct = 6;
+  double brake_usage_pct = 7;
+  double drs_usage_pct = 8;
+  string behavior = 9;
+}
+
+message DriverSegmentBucketsResponse {
+  string session_id = 1;
+  int32 driver_number = 2;
+  int32 lap_number = 3;
+  repeated SegmentBucket buckets = 4;
+}
+
+message CompareDriversOnLapRequest {
+  string session_id = 1;
+  int32 left_driver_number = 2;
+  int32 right_driver_number = 3;
+  int32 lap_number = 4;
+  int32 bucket_count = 5;
+}
+
+message TelemetryPoint {
+  double progress_pct = 1;
+  string timestamp = 2;
+  int32 speed = 3;
+  int32 throttle_pct = 4;
+  double brake_pct = 5;
+  int32 gear = 6;
+  bool drs_enabled = 7;
+}
+
+message DriverLapSeries {
+  int32 driver_number = 1;
+  string driver_name = 2;
+  int32 lap_number = 3;
+  repeated TelemetryPoint telemetry = 4;
+}
+
+message SegmentComparisonBucket {
+  int32 bucket_index = 1;
+  double start_progress_pct = 2;
+  double end_progress_pct = 3;
+  string left_behavior = 4;
+  string right_behavior = 5;
+  double avg_speed_delta = 6;
+  double throttle_delta = 7;
+  double brake_delta = 8;
+}
+
+message CompareDriversOnLapResponse {
+  string session_id = 1;
+  int32 lap_number = 2;
+  DriverLapSeries left = 3;
+  DriverLapSeries right = 4;
+  repeated SegmentComparisonBucket bucket_compare = 5;
+}
