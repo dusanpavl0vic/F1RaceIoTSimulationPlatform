@@ -1,44 +1,73 @@
 "use client";
 
 import styled from "styled-components";
-import type { ColorStyleProps } from "@/theme/style-props";
-import type { AppUiTheme } from "@/theme/ui-theme";
+import { t } from "@/theme/styled-helpers";
+import { appColors } from "@/theme/colors";
 
-const asAppTheme = (theme: unknown) => theme as AppUiTheme;
-
-export const StyledAppFooter = styled.footer<ColorStyleProps>`
+export const StyledFooter = styled.footer`
   margin-top: auto;
-  border-top: 1px solid
-    ${({ theme, $borderColor = "border" }) => asAppTheme(theme).colors[$borderColor]};
-  background: linear-gradient(180deg, rgba(17, 17, 17, 0.04), rgba(17, 17, 17, 0.02));
+  background-color: ${({ theme }) => t(theme).colors.background};
+  border-top: 1px solid ${({ theme }) => t(theme).colors.border};
+  box-shadow: inset 0 3px 0 0 ${appColors.formulaRed};
 `;
 
-export const StyledAppFooterInner = styled.div`
-  width: ${({ theme }) => asAppTheme(theme).layout.contentWidth};
+export const StyledFooterInner = styled.div`
+  width: ${({ theme }) => t(theme).layout.contentWidth};
   margin: 0 auto;
-  padding: 20px 0 30px;
+  padding: 16px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 16px;
+  flex-wrap: wrap;
 
-  ${({ theme }) => asAppTheme(theme).breakpoints.down("sm")} {
-    width: ${({ theme }) => asAppTheme(theme).layout.mobileContentWidth};
+  ${({ theme }) => t(theme).breakpoints.down("sm")} {
+    width: ${({ theme }) => t(theme).layout.mobileContentWidth};
     flex-direction: column;
     align-items: flex-start;
   }
 `;
 
-export const StyledAppFooterLink = styled.a<ColorStyleProps>`
+export const StyledFooterIdentity = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+`;
+
+export const StyledFooterName = styled.span`
+  font-family: var(--font-silkscreen), "Silkscreen", monospace;
+  font-weight: 700;
+  font-size: 0.68rem;
+  letter-spacing: 0.10em;
+  color: ${({ theme }) => t(theme).colors.textPrimary};
+  line-height: 1.4;
+`;
+
+export const StyledFooterUniversity = styled.span`
+  font-family: var(--font-silkscreen), "Silkscreen", monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  color: ${({ theme }) => t(theme).colors.textMuted};
+`;
+
+export const StyledGithubLink = styled.a`
   display: inline-flex;
   align-items: center;
-  min-height: 42px;
-  padding: 0 16px;
-  border-radius: ${({ theme }) => asAppTheme(theme).radius.pill};
-  background: ${({ theme, $backgroundColor = "formulaRed" }) =>
-    `linear-gradient(135deg, ${asAppTheme(theme).colors[$backgroundColor]}, ${asAppTheme(theme).colors.formulaRedDark})`};
-  color: ${({ theme, $textColor = "white" }) => asAppTheme(theme).colors[$textColor]};
+  gap: 6px;
+  padding: 0 12px;
+  height: 30px;
+  border: 1px solid ${appColors.formulaRed};
+  color: ${appColors.formulaRed};
   text-decoration: none;
+  font-family: var(--font-silkscreen), "Silkscreen", monospace;
   font-weight: 700;
-  box-shadow: ${({ theme }) => asAppTheme(theme).colors.accentShadow};
+  font-size: 0.60rem;
+  letter-spacing: 0.10em;
+  border-radius: 3px;
+  transition: background-color 0.12s, color 0.12s;
+
+  &:hover {
+    background-color: ${appColors.formulaRed};
+    color: #fff;
+  }
 `;

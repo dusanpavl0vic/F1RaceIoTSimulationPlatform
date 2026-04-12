@@ -1,15 +1,17 @@
-@import url("https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap");
+/* Font loaded via next/font/google in layout.tsx */
 
 :root {
-  --bg: #f6f3ee;
-  --ink: #141414;
-  --muted: #65605a;
-  --panel: rgba(255, 252, 247, 0.94);
-  --line: rgba(20, 20, 20, 0.1);
-  --accent: #e10600;
-  --accent-dark: #8f0500;
-  --carbon: #111111;
-  --shadow: 0 20px 45px rgba(20, 20, 20, 0.08);
+  --bg: #EEF1FF;
+  --ink: #050E3C;
+  --muted: #3D5285;
+  --panel: #FFFFFF;
+  --line: rgba(5, 14, 60, 0.11);
+  --accent: #DC0000;
+  --accent-light: #FF3838;
+  --accent-dark: #A80000;
+  --navy-deep: #050E3C;
+  --navy-royal: #002455;
+  --shadow: 0 0 0 1px rgba(5,14,60,0.07), 0 4px 20px rgba(5,14,60,0.08);
 }
 
 * {
@@ -21,20 +23,14 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background:
-    radial-gradient(circle at top left, rgba(210, 33, 40, 0.14), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(0, 0, 0, 0.08), transparent 30%),
-    var(--bg);
+  background: var(--bg);
   color: var(--ink);
-  font-family: "Nunito", sans-serif;
+  font-family: var(--font-silkscreen), "Silkscreen", monospace;
 }
 
 body {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(212, 43, 48, 0.14), transparent 26%),
-    radial-gradient(circle at bottom right, rgba(0, 0, 0, 0.08), transparent 28%),
-    var(--bg);
+  background: var(--bg);
 }
 
 a {
@@ -57,31 +53,16 @@ a {
   padding-bottom: 56px;
 }
 
-.app-shell strong {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.app-shell p {
-  margin: 0;
-}
-
-.app-footer p {
-  color: var(--muted);
-}
-
 .page-shell {
   width: 100%;
-  padding: 24px 0 56px;
+  padding: 20px 0 56px;
 }
 
 .hero-panel {
-  background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(12px);
-  padding: 28px;
-  border-radius: 28px;
+  padding: 16px 20px;
+  border-radius: 4px;
+  border-left: 4px solid var(--accent);
 }
 
 .eyebrow {
@@ -92,70 +73,12 @@ a {
   color: var(--accent);
 }
 
-.hero-panel h1 {
-  margin: 0;
-  font-size: clamp(2.2rem, 5vw, 4.5rem);
-  line-height: 0.95;
-}
-
-.hero-copy {
-  max-width: 62ch;
-  color: var(--muted);
-}
-
-.template-stack {
-  display: grid;
-  gap: 16px;
-  margin-top: 24px;
-}
-
-.template-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  border-radius: 22px;
-  padding: 18px 20px;
-}
-
-.template-card strong {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 1.25rem;
-}
-
-.template-card p {
-  margin: 0;
-  color: var(--muted);
-}
-
-.template-label {
-  display: block;
-  margin-bottom: 8px;
-  color: var(--accent);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.72rem;
-}
-
-.template-card-wide pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
 @media (max-width: 640px) {
   .page-shell {
-    width: 100%;
     padding-top: 12px;
   }
 
   .app-container {
     width: min(100vw - 20px, 100%);
-  }
-
-  .hero-panel {
-    border-radius: 20px;
   }
 }

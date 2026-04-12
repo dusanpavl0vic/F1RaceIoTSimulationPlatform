@@ -33,6 +33,7 @@ export const appDevices = {
 export type AppUiColors = Record<AppColorToken, string>;
 
 export type AppUiTheme = {
+  isDark: boolean;
   colors: AppUiColors;
   breakpoints: typeof appBreakpoints;
   devices: typeof appDevices;
@@ -48,6 +49,7 @@ export type AppUiTheme = {
 };
 
 export const appUiTheme: AppUiTheme = {
+  isDark: false,
   colors: appColors,
   breakpoints: appBreakpoints,
   devices: appDevices,
@@ -56,9 +58,9 @@ export const appUiTheme: AppUiTheme = {
     mobileContentWidth: "min(100vw - 20px, 100%)",
   },
   radius: {
-    panel: "28px",
-    card: "22px",
-    pill: "999px",
+    panel: "4px",
+    card: "4px",
+    pill: "4px",
   },
 };
 

@@ -1,7 +1,20 @@
 "use client";
 
-import { Paper, Stack, Typography } from "@mui/material";
 import type { RaceDashboardDriverRow } from "@/features/race-state/types/race-state";
+import {
+  StyledRunningGap,
+  StyledRunningHeader,
+  StyledRunningLeft,
+  StyledRunningList,
+  StyledRunningName,
+  StyledRunningPaper,
+  StyledRunningPos,
+  StyledRunningRight,
+  StyledRunningRow,
+  StyledRunningStatus,
+  StyledRunningTeam,
+  StyledRunningTitle,
+} from "./running-order-panel.styles";
 
 type RunningOrderPanelProps = {
   rows: RaceDashboardDriverRow[];
@@ -9,71 +22,41 @@ type RunningOrderPanelProps = {
 
 export function RunningOrderPanel({ rows }: RunningOrderPanelProps) {
   return (
-    <Paper
-      sx={{
-        p: 2.25,
-        borderRadius: 3,
-        backgroundColor: "#050505",
-        border: "1px solid rgba(255,255,255,0.08)",
-      }}
-    >
-      <Typography variant="h6" sx={{ color: "#fff", fontWeight: 900, mb: 0.5 }}>
-        Running Order
-      </Typography>
-      <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.58)", mb: 2 }}>
-        Trenutni poredak vozaca kako ga servis trenutno vidi.
-      </Typography>
+    <StyledRunningPaper>
+      <StyledRunningHeader>
+        <StyledRunningTitle>RUNNING ORDER</StyledRunningTitle>
+      </StyledRunningHeader>
 
-      <Stack spacing={0.75}>
+      <StyledRunningList>
         {rows.map((row) => {
-          const teamColor = row.teamColor ?? "#f7f7f7";
+          const teamColor = row.teamColor ? `#${row.teamColor.replace(/^#/, "")}` : "#888";
+          const pos = row.position ?? row.gridPosition ?? row.line;
+          const isDimmed = row.retired || row.didNotStart || row.stopped;
 
           return (
-            <Stack
-              key={row.driverNumber}
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              spacing={1.25}
-              sx={{
-                px: 1.25,
-                py: 0.9,
-                borderRadius: 2,
-                backgroundColor: "rgba(255,255,255,0.03)",
-              }}
-            >
-              <Stack direction="row" spacing={1.1} alignItems="center">
-                <Typography
-                  sx={{
-                    minWidth: 28,
-                    color: row.position || row.gridPosition || row.line ? "#fff" : "rgba(255,255,255,0.42)",
-                    fontWeight: 900,
-                  }}
-                >
-                  {row.position ?? row.gridPosition ?? row.line ?? "-"}
-                </Typography>
-                <Stack spacing={0.1}>
-                  <Typography sx={{ color: teamColor, fontWeight: 900 }}>
-                    {row.driverLabel}
-                  </Typography>
-                  <Typography sx={{ color: "rgba(255,255,255,0.54)", fontSize: 12 }}>
-                    #{row.driverNumber} {row.displayTeamName}
-                  </Typography>
-                </Stack>
-              </Stack>
+            <StyledRunningRow key={row.driverNumber} $dimmed={isDimmed} $color={teamColor}>
+              <StyledRunningLeft>
+                <StyledRunningPos $isLeader={pos === 1}>{pos ?? "—"}</StyledRunningPos>
+                <div>
+                  <StyledRunningName $color={teamColor}>
+                    {row.tla ?? row.driverLabel}
+                  </StyledRunningName>
+                  <StyledRunningTeam>{row.displayTeamName}</StyledRunningTeam>
+                </div>
+              </StyledRunningLeft>
 
-              <Stack spacing={0.1} alignItems="flex-end">
-                <Typography sx={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>
-                  {row.gapToLeader ?? "-"}
-                </Typography>
-                <Typography sx={{ color: "rgba(255,255,255,0.54)", fontSize: 12 }}>
+              <StyledRunningRight>
+                <StyledRunningGap>
+                  {row.gapToLeader === "leader" ? "LEAD" : (row.gapToLeader ?? "—")}
+                </StyledRunningGap>
+                <StyledRunningStatus $status={row.statusLabel}>
                   {row.statusLabel}
-                </Typography>
-              </Stack>
-            </Stack>
+                </StyledRunningStatus>
+              </StyledRunningRight>
+            </StyledRunningRow>
           );
         })}
-      </Stack>
-    </Paper>
+      </StyledRunningList>
+    </StyledRunningPaper>
   );
 }

@@ -1,28 +1,31 @@
 import {
-  StyledAppFooter,
-  StyledAppFooterInner,
-  StyledAppFooterLink,
-} from "@/components/layout/footer/app-footer.styles";
+  StyledFooter,
+  StyledFooterIdentity,
+  StyledFooterInner,
+  StyledFooterName,
+  StyledFooterUniversity,
+  StyledGithubLink,
+} from "./app-footer.styles";
 
 export function AppFooter() {
   return (
-    <StyledAppFooter $borderColor="border">
-      <StyledAppFooterInner>
-        <div>
-          <strong>Dusan Pavlovic 18820</strong>
-          <p>Elektronski fakultet, Univerzitet u Nisu</p>
-        </div>
+    <StyledFooter>
+      <StyledFooterInner>
+        <StyledFooterIdentity>
+          <StyledFooterName>DUSAN PAVLOVIC 18820</StyledFooterName>
+          <StyledFooterUniversity>
+            ELEKTRONSKI FAKULTET · UNIVERZITET U NISU
+          </StyledFooterUniversity>
+        </StyledFooterIdentity>
 
-        <StyledAppFooterLink
-          $backgroundColor="formulaRed"
-          $textColor="white"
+        <StyledGithubLink
           href="https://github.com/dusanpavl0vic"
           target="_blank"
           rel="noreferrer"
         >
-          GitHub
-        </StyledAppFooterLink>
-      </StyledAppFooterInner>
-    </StyledAppFooter>
+          GITHUB →
+        </StyledGithubLink>
+      </StyledFooterInner>
+    </StyledFooter>
   );
 }

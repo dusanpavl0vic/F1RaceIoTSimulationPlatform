@@ -1,16 +1,16 @@
-import {
-  Box,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Typography,
-} from "@mui/material";
+import { useRef } from "react";
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material";
 import type { RaceDashboardDriverRow } from "@/features/race-state/types/race-state";
-import { LeaderboardDriverRow } from "@/features/race-state/components/leaderboard/leaderboard-driver-row";
+import { LeaderboardDriverRow } from "./leaderboard-driver-row";
+import {
+  StyledLastHeadCell,
+  StyledPosHeadCell,
+  StyledTableCount,
+  StyledTableTitle,
+  StyledTableTopBar,
+  StyledTableWrapper,
+  StyledWideHeadCell,
+} from "./leaderboard-table.styles";
 
 type LeaderboardTableProps = {
   rows: RaceDashboardDriverRow[];
@@ -18,70 +18,41 @@ type LeaderboardTableProps = {
   isTablet: boolean;
 };
 
-export function LeaderboardTable({
-  rows,
-  isMobile,
-  isTablet,
-}: LeaderboardTableProps) {
+export function LeaderboardTable({ rows, isMobile, isTablet }: LeaderboardTableProps) {
+  const prevPositions = useRef<Map<number, number>>(new Map());
+
+  const positionChanges = new Map<number, "gained" | "lost">();
+  for (const row of rows) {
+    const pos = row.position ?? row.gridPosition ?? row.line;
+    const prev = prevPositions.current.get(row.driverNumber);
+    if (prev !== undefined && pos !== null && pos !== undefined && prev !== pos) {
+      positionChanges.set(row.driverNumber, pos < prev ? "gained" : "lost");
+    }
+  }
+  prevPositions.current = new Map(
+    rows.map((r) => [r.driverNumber, r.position ?? r.gridPosition ?? r.line ?? 0])
+  );
+
   return (
-    <Paper
-      sx={{
-        p: 0,
-        borderRadius: 3,
-        overflow: "hidden",
-        backgroundColor: "#050505",
-        border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
-      }}
-    >
-      <Box
-        sx={{
-          px: 2.5,
-          py: 1.75,
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-          background:
-            "linear-gradient(90deg, rgba(225,6,0,0.18) 0%, rgba(225,6,0,0.03) 35%, rgba(0,0,0,0) 100%)",
-        }}
-      >
-        <Typography variant="h5" sx={{ color: "#fff", fontWeight: 900, letterSpacing: "0.04em" }}>
-          LEADERBOARD
-        </Typography>
-        <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)" }}>
-          Live timing tabela: redosled, gap, gume i status u trci.
-        </Typography>
-      </Box>
+    <StyledTableWrapper>
+      <StyledTableTopBar>
+        <StyledTableTitle>LIVE TIMING</StyledTableTitle>
+        <StyledTableCount>{rows.length} DRIVERS</StyledTableCount>
+      </StyledTableTopBar>
 
       <TableContainer>
-        <Table
-          size={isMobile ? "small" : "medium"}
-          sx={{
-            "& .MuiTableCell-root": {
-              borderColor: "rgba(255,255,255,0.08)",
-            },
-          }}
-        >
+        <Table size="small">
           <TableHead>
-            <TableRow
-              sx={{
-                backgroundColor: "#0f1117",
-                "& th": {
-                  color: "rgba(255,255,255,0.72)",
-                  fontWeight: 700,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  fontSize: "0.72rem",
-                },
-              }}
-            >
-              <TableCell>Pos</TableCell>
-              <TableCell>Driver</TableCell>
-              {!isMobile && <TableCell>Team</TableCell>}
-              <TableCell>Gap</TableCell>
-              {!isTablet && <TableCell>Interval</TableCell>}
-              {!isMobile && <TableCell>Tyre</TableCell>}
-              <TableCell>Last Lap</TableCell>
-              {!isTablet && <TableCell>Best Lap</TableCell>}
-              <TableCell>Status</TableCell>
+            <TableRow>
+              <StyledPosHeadCell>POS</StyledPosHeadCell>
+              <StyledWideHeadCell>DRIVER</StyledWideHeadCell>
+              {!isMobile && <TableCell>TEAM</TableCell>}
+              <TableCell>GAP</TableCell>
+              {!isTablet && <TableCell>INT</TableCell>}
+              {!isMobile && <TableCell>TYRE</TableCell>}
+              <TableCell>LAST</TableCell>
+              {!isTablet && <TableCell>BEST</TableCell>}
+              <StyledLastHeadCell>STATUS</StyledLastHeadCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -91,11 +62,12 @@ export function LeaderboardTable({
                 row={row}
                 isMobile={isMobile}
                 isTablet={isTablet}
+                positionChange={positionChanges.get(row.driverNumber) ?? null}
               />
             ))}
           </TableBody>
         </Table>
       </TableContainer>
-    </Paper>
+    </StyledTableWrapper>
   );
 }

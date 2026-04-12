@@ -1,50 +1,78 @@
-import { Paper, Stack, Typography } from "@mui/material";
+import { Chip } from "@mui/material";
 import type { RaceStateUiView } from "@/features/race-state/types/race-state";
+import {
+  StyledLiveDot,
+  StyledPanelHeader,
+  StyledPanelTitle,
+  StyledStatLabel,
+  StyledStatRow,
+  StyledStatsList,
+  StyledStatTimeValue,
+  StyledTransportPaper,
+} from "./live-transport-panel.styles";
 
 type LiveTransportPanelProps = {
   wsUi: RaceStateUiView;
   isFetching: boolean;
 };
 
-export function LiveTransportPanel({
-  wsUi,
-  isFetching,
-}: LiveTransportPanelProps) {
+const resolveWsColor = (status: string) => {
+  switch (status) {
+    case "open": return "success" as const;
+    case "connecting": return "warning" as const;
+    case "error": return "error" as const;
+    default: return "default" as const;
+  }
+};
+
+const formatTime = (iso: string | null) => {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+};
+
+export function LiveTransportPanel({ wsUi, isFetching }: LiveTransportPanelProps) {
+  const isLive = wsUi.wsStatus === "open";
+
   return (
-    <Paper sx={{ p: 2.5, borderRadius: 4 }}>
-      <Typography variant="h5" gutterBottom>
-        Live transport
-      </Typography>
-      <Stack spacing={1}>
-        <Typography variant="body2" color="text.secondary">
-          REST refresh: {isFetching ? "updating" : "idle"}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          WS status: {wsUi.wsStatus}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Last message:{" "}
-          {wsUi.lastWsMessageReceivedAt
-            ? new Date(wsUi.lastWsMessageReceivedAt).toLocaleTimeString()
-            : "-"}
-        </Typography>
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 1.5,
-            borderRadius: 3,
-            backgroundColor: "background.default",
-          }}
-        >
-          <Typography
-            component="pre"
-            variant="caption"
-            sx={{ m: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-          >
-            {wsUi.lastWsPayloadPreview}
-          </Typography>
-        </Paper>
-      </Stack>
-    </Paper>
+    <StyledTransportPaper>
+      <StyledPanelHeader>
+        <StyledPanelTitle>TRANSPORT</StyledPanelTitle>
+        <StyledLiveDot $live={isLive} />
+      </StyledPanelHeader>
+
+      <StyledStatsList>
+        <StyledStatRow>
+          <StyledStatLabel>WEBSOCKET</StyledStatLabel>
+          <Chip
+            size="small"
+            label={wsUi.wsStatus.toUpperCase()}
+            color={resolveWsColor(wsUi.wsStatus)}
+            variant={isLive ? "filled" : "outlined"}
+          />
+        </StyledStatRow>
+
+        <StyledStatRow>
+          <StyledStatLabel>REST POLL</StyledStatLabel>
+          <Chip
+            size="small"
+            label={isFetching ? "UPDATING" : "IDLE"}
+            color={isFetching ? "info" : "default"}
+            variant={isFetching ? "filled" : "outlined"}
+          />
+        </StyledStatRow>
+
+        <StyledStatRow>
+          <StyledStatLabel>LAST MSG</StyledStatLabel>
+          <StyledStatTimeValue>
+            {formatTime(wsUi.lastWsMessageReceivedAt)}
+          </StyledStatTimeValue>
+        </StyledStatRow>
+      </StyledStatsList>
+    </StyledTransportPaper>
   );
 }

@@ -1,25 +1,47 @@
+// ─── Brand palette ───────────────────────────────────────────────────────────
+// #050E3C  deepest navy  — dark bg / light ink
+// #002455  royal navy    — dark panel / light muted ink
+// #DC0000  F1 red        — primary accent (both modes)
+// #FF3838  bright red    — hover / lighter accent (both modes)
+
 export const appColors = {
-  darkBlue: "#10233f",
-  darkBlueMuted: "#1a3357",
-  formulaRed: "#e10600",
-  formulaRedDark: "#8f0500",
-  carbonBlack: "#111111",
-  white: "#ffffff",
-  background: "#f6f3ee",
-  backgroundSoft: "#fffaf5",
-  backgroundDark: "#0d1320",
-  backgroundSoftDark: "#151d2f",
-  panel: "rgba(255, 252, 247, 0.94)",
-  panelDark: "rgba(21, 29, 47, 0.92)",
-  textPrimary: "#141414",
-  textMuted: "#65605a",
-  textPrimaryDark: "#f3f4f8",
-  textMutedDark: "#a7b0c3",
-  border: "rgba(20, 20, 20, 0.1)",
-  borderDark: "rgba(243, 244, 248, 0.12)",
-  shadow: "0 20px 45px rgba(20, 20, 20, 0.08)",
-  shadowDark: "0 20px 45px rgba(0, 0, 0, 0.28)",
-  accentShadow: "0 16px 30px rgba(225, 6, 0, 0.18)",
+  // Core brand
+  navyDeep: "#050E3C",
+  navyRoyal: "#002455",
+  formulaRed: "#DC0000",
+  formulaRedLight: "#FF3838",
+
+  // ── Dark mode ──────────────────────────────────────────────────────────────
+  // Navies as backgrounds, light text on top
+  backgroundDark: "#050E3C",
+  backgroundSoftDark: "#001F4D",
+  panelDark: "#002455",
+  textPrimaryDark: "#E8EEFF",
+  textMutedDark: "#6A85B8",
+  borderDark: "rgba(255, 255, 255, 0.09)",
+  shadowDark: "0 0 0 1px rgba(255,255,255,0.07), 0 8px 32px rgba(5,14,60,0.9)",
+
+  // ── Light mode ─────────────────────────────────────────────────────────────
+  // Inverted: light lavender bg, navy as ink — high contrast, same hue family
+  background: "#EEF1FF",
+  backgroundSoft: "#F6F8FF",
+  panel: "#FFFFFF",
+  textPrimary: "#050E3C",
+  textMuted: "#3D5285",
+  border: "rgba(5, 14, 60, 0.11)",
+  shadow: "0 0 0 1px rgba(5,14,60,0.07), 0 4px 20px rgba(5,14,60,0.08)",
+
+  // ── Semantic ───────────────────────────────────────────────────────────────
+  sectorGreen: "#00C853",
+  timingYellow: "#FFD600",
+  white: "#FFFFFF",
+  carbonBlack: "#050E3C",
+
+  // Legacy aliases (keep for styled-components header)
+  darkBlue: "#050E3C",
+  darkBlueMuted: "#002455",
+  formulaRedDark: "#A80000",
+  accentShadow: "0 8px 24px rgba(220, 0, 0, 0.28)",
 } as const;
 
 export type AppColorToken = keyof typeof appColors;

@@ -6,12 +6,11 @@ export function createAppUiTheme(colorMode: ColorMode): AppUiTheme {
   const isDark = colorMode === "dark";
 
   return {
+    isDark,
     colors: {
       ...appColors,
       background: isDark ? appColors.backgroundDark : appColors.background,
-      backgroundSoft: isDark
-        ? appColors.backgroundSoftDark
-        : appColors.backgroundSoft,
+      backgroundSoft: isDark ? appColors.backgroundSoftDark : appColors.backgroundSoft,
       panel: isDark ? appColors.panelDark : appColors.panel,
       textPrimary: isDark ? appColors.textPrimaryDark : appColors.textPrimary,
       textMuted: isDark ? appColors.textMutedDark : appColors.textMuted,
@@ -25,9 +24,9 @@ export function createAppUiTheme(colorMode: ColorMode): AppUiTheme {
       mobileContentWidth: "min(100vw - 20px, 100%)",
     },
     radius: {
-      panel: "28px",
-      card: "22px",
-      pill: "999px",
+      panel: "4px",
+      card: "4px",
+      pill: "4px",
     },
   };
 }
