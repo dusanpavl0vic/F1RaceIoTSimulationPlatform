@@ -24,7 +24,9 @@ public sealed class TelemetryAnalyticsWorker(
         "lap.count.updated",
         "driver.list.updated",
         "timing.driver.updated",
+        "timing.stats.updated",
         "timing.app.updated",
+        "lap.series.updated",
         "tyres.current.updated",
         "tyres.stint.updated",
         "car.telemetry.updated"

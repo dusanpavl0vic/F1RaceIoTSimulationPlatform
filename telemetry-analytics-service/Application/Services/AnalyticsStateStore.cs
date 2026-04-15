@@ -14,7 +14,18 @@ public sealed class AnalyticsStateStore
     {
         lock (_gate)
         {
-            return _session;
+            return new AnalyticsSessionState
+            {
+                SessionId = _session.SessionId,
+                MeetingName = _session.MeetingName,
+                SessionName = _session.SessionName,
+                SessionStatus = _session.SessionStatus,
+                TrackStatusCode = _session.TrackStatusCode,
+                TrackStatusLabel = _session.TrackStatusLabel,
+                CurrentLap = _session.CurrentLap,
+                TotalLaps = _session.TotalLaps,
+                UpdatedAt = _session.UpdatedAt
+            };
         }
     }
 
@@ -33,7 +44,9 @@ public sealed class AnalyticsStateStore
                 "lap.count.updated" => ApplyLapCount(canonicalEvent),
                 "driver.list.updated" => ApplyDriverMetadata(canonicalEvent),
                 "timing.driver.updated" => ApplyTiming(canonicalEvent),
+                "timing.stats.updated" => ApplyTimingStats(canonicalEvent),
                 "timing.app.updated" => ApplyTimingApp(canonicalEvent),
+                "lap.series.updated" => ApplyLapSeries(canonicalEvent),
                 "tyres.current.updated" => ApplyCurrentTyres(canonicalEvent),
                 "tyres.stint.updated" => ApplyTyreStints(canonicalEvent),
                 "car.telemetry.updated" => ApplyTelemetry(canonicalEvent),
@@ -157,6 +170,22 @@ public sealed class AnalyticsStateStore
         return new AnalyticsApplyOutcome(true, false, true, false, driver, completedLap, null, null);
     }
 
+    private AnalyticsApplyOutcome ApplyTimingStats(CanonicalEvent canonicalEvent)
+    {
+        if (canonicalEvent.DriverNumber is not int driverNumber)
+        {
+            return new AnalyticsApplyOutcome(false, false, false, false, null, null, null, null);
+        }
+
+        var driver = GetOrCreateDriver(driverNumber);
+        var timingStats = canonicalEvent.Payload["timingStats"];
+        driver.Line = FirstNonNull(TryParseInt(timingStats?["Line"]?.ToString()), driver.Line);
+        driver.BestLapTime = FirstNonEmpty(ExtractTimingValue(timingStats?["PersonalBestLapTime"]), driver.BestLapTime);
+        driver.LastUpdateTimestamp = canonicalEvent.EventTime;
+
+        return new AnalyticsApplyOutcome(true, false, true, false, driver, null, null, null);
+    }
+
     private AnalyticsApplyOutcome ApplyTimingApp(CanonicalEvent canonicalEvent)
     {
         if (canonicalEvent.DriverNumber is not int driverNumber)
@@ -175,6 +204,27 @@ public sealed class AnalyticsStateStore
             : null;
 
         return new AnalyticsApplyOutcome(true, false, true, stintSummary is not null, driver, null, stintSummary, null);
+    }
+
+    private AnalyticsApplyOutcome ApplyLapSeries(CanonicalEvent canonicalEvent)
+    {
+        if (canonicalEvent.DriverNumber is not int driverNumber)
+        {
+            return new AnalyticsApplyOutcome(false, false, false, false, null, null, null, null);
+        }
+
+        var driver = GetOrCreateDriver(driverNumber);
+        var (lapNumber, position) = ResolveLapSeriesPosition(canonicalEvent.Payload["lapSeries"]?["LapPosition"]);
+
+        driver.Position = FirstNonNull(position, driver.Position);
+        if (lapNumber is int completedLapFromSeries)
+        {
+            driver.CompletedLaps = Math.Max(driver.CompletedLaps ?? 0, completedLapFromSeries);
+        }
+
+        driver.LastUpdateTimestamp = canonicalEvent.EventTime;
+
+        return new AnalyticsApplyOutcome(true, false, true, false, driver, null, null, null);
     }
 
     private AnalyticsApplyOutcome ApplyCurrentTyres(CanonicalEvent canonicalEvent)
@@ -376,6 +426,31 @@ public sealed class AnalyticsStateStore
         => node is JsonArray sectors
             ? ExtractTimingValue(sectors.ElementAtOrDefault(index))
             : ExtractTimingValue(node?[index.ToString()]);
+
+    private static (int? LapNumber, int? Position) ResolveLapSeriesPosition(JsonNode? lapPositionNode)
+    {
+        if (lapPositionNode is JsonObject lapPositions)
+        {
+            var latest = lapPositions
+                .Select(entry => (LapNumber: TryParseInt(entry.Key), Position: TryParseInt(entry.Value?.ToString())))
+                .Where(entry => entry.LapNumber is not null && entry.Position is not null)
+                .OrderByDescending(entry => entry.LapNumber)
+                .FirstOrDefault();
+
+            return latest;
+        }
+
+        if (lapPositionNode is JsonArray lapPositionArray)
+        {
+            var position = lapPositionArray
+                .Select(node => TryParseInt(node?.ToString()))
+                .LastOrDefault(value => value is not null);
+
+            return (null, position);
+        }
+
+        return (null, null);
+    }
 
     private static string? NormalizeTimingValue(string? value)
     {

@@ -26,19 +26,21 @@ public sealed class InfluxTelemetryClient(
         }
 
         var line = BuildLineProtocol(sample);
-        using var request = new HttpRequestMessage(
-            HttpMethod.Post,
-            $"{_options.BaseUrl.TrimEnd('/')}/api/v2/write?org={Uri.EscapeDataString(_options.Organization)}&bucket={Uri.EscapeDataString(_options.Bucket)}&precision={Uri.EscapeDataString(_options.WritePrecision)}")
-        {
-            Content = new StringContent(line, Encoding.UTF8, "text/plain")
-        };
+        using var response = await SendWithOptionalAuthRetryAsync(
+            includeAuthorization =>
+            {
+                var request = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    $"{_options.BaseUrl.TrimEnd('/')}/api/v2/write?org={Uri.EscapeDataString(_options.Organization)}&bucket={Uri.EscapeDataString(_options.Bucket)}&precision={Uri.EscapeDataString(_options.WritePrecision)}")
+                {
+                    Content = new StringContent(line, Encoding.UTF8, "text/plain")
+                };
 
-        if (!string.IsNullOrWhiteSpace(_options.Token))
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Token", _options.Token);
-        }
+                ApplyAuthorization(request, includeAuthorization);
+                return request;
+            },
+            cancellationToken);
 
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -61,23 +63,26 @@ public sealed class InfluxTelemetryClient(
               |> filter(fn: (r) => r.driver_number == "{{driverNumber}}")
               |> filter(fn: (r) => r.lap_number == "{{lapNumber}}")
               |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-              |> keep(columns: ["_time", "speed", "throttle_pct", "brake_pct", "gear", "drs_enabled"])
-              |> sort(columns: ["_time"])
+              |> keep(columns: ["_time", "sample_index", "speed", "throttle_pct", "brake_pct", "gear", "drs_enabled"])
+              |> sort(columns: ["sample_index", "_time"])
             """;
 
-        using var request = new HttpRequestMessage(
-            HttpMethod.Post,
-            $"{_options.BaseUrl.TrimEnd('/')}/api/v2/query?org={Uri.EscapeDataString(_options.Organization)}")
-        {
-            Content = new StringContent($"{{\"query\":{System.Text.Json.JsonSerializer.Serialize(flux)}}}", Encoding.UTF8, "application/json")
-        };
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/csv"));
-        if (!string.IsNullOrWhiteSpace(_options.Token))
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Token", _options.Token);
-        }
+        using var response = await SendWithOptionalAuthRetryAsync(
+            includeAuthorization =>
+            {
+                var request = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    $"{_options.BaseUrl.TrimEnd('/')}/api/v2/query?org={Uri.EscapeDataString(_options.Organization)}")
+                {
+                    Content = new StringContent($"{{\"query\":{System.Text.Json.JsonSerializer.Serialize(flux)}}}", Encoding.UTF8, "application/json")
+                };
 
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/csv"));
+                ApplyAuthorization(request, includeAuthorization);
+                return request;
+            },
+            cancellationToken);
+
         response.EnsureSuccessStatusCode();
         var payload = await response.Content.ReadAsStringAsync(cancellationToken);
         return ParseTelemetryCsv(payload);
@@ -140,6 +145,34 @@ public sealed class InfluxTelemetryClient(
     private static string EscapeFluxString(string value)
         => value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
 
+    private async Task<HttpResponseMessage> SendWithOptionalAuthRetryAsync(
+        Func<bool, HttpRequestMessage> requestFactory,
+        CancellationToken cancellationToken)
+    {
+        var includeAuthorization = !string.IsNullOrWhiteSpace(_options.Token);
+        var response = await SendAsync(requestFactory(includeAuthorization), cancellationToken);
+
+        if (includeAuthorization && response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+        {
+            response.Dispose();
+            _logger.LogWarning("InfluxDB request rejected the configured token. Retrying without authorization header for local/dev compatibility.");
+            response = await SendAsync(requestFactory(false), cancellationToken);
+        }
+
+        return response;
+    }
+
+    private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        => await _httpClient.SendAsync(request, cancellationToken);
+
+    private void ApplyAuthorization(HttpRequestMessage request, bool includeAuthorization)
+    {
+        if (includeAuthorization)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Token", _options.Token);
+        }
+    }
+
     private static IReadOnlyList<TelemetryPointDto> ParseTelemetryCsv(string csv)
     {
         var lines = csv
@@ -154,32 +187,40 @@ public sealed class InfluxTelemetryClient(
 
         var headers = lines[0].Split(',');
         var timeIndex = Array.IndexOf(headers, "_time");
+        var sampleIndex = Array.IndexOf(headers, "sample_index");
         var speedIndex = Array.IndexOf(headers, "speed");
         var throttleIndex = Array.IndexOf(headers, "throttle_pct");
         var brakeIndex = Array.IndexOf(headers, "brake_pct");
         var gearIndex = Array.IndexOf(headers, "gear");
         var drsIndex = Array.IndexOf(headers, "drs_enabled");
 
-        var items = new List<TelemetryPointDto>();
+        var items = new List<(int SampleIndex, TelemetryPointDto Point)>();
         for (var index = 1; index < lines.Length; index++)
         {
             var columns = lines[index].Split(',');
-            items.Add(new TelemetryPointDto(
-                0d,
-                timeIndex >= 0 && timeIndex < columns.Length ? columns[timeIndex] : string.Empty,
-                ParseInt(columns, speedIndex),
-                ParseInt(columns, throttleIndex),
-                ParseDouble(columns, brakeIndex),
-                ParseInt(columns, gearIndex),
-                ParseBool(columns, drsIndex)));
+            items.Add((
+                ParseInt(columns, sampleIndex),
+                new TelemetryPointDto(
+                    0d,
+                    timeIndex >= 0 && timeIndex < columns.Length ? columns[timeIndex] : string.Empty,
+                    ParseInt(columns, speedIndex),
+                    ParseInt(columns, throttleIndex),
+                    ParseDouble(columns, brakeIndex),
+                    ParseInt(columns, gearIndex),
+                    ParseBool(columns, drsIndex))));
         }
+
+        items = items
+            .OrderBy(item => item.SampleIndex)
+            .ThenBy(item => item.Point.Timestamp, StringComparer.Ordinal)
+            .ToList();
 
         if (items.Count == 1)
         {
-            return [items[0] with { ProgressPct = 100d }];
+            return [items[0].Point with { ProgressPct = 100d }];
         }
 
-        return items.Select((item, index) => item with
+        return items.Select((item, index) => item.Point with
         {
             ProgressPct = index / (double)Math.Max(1, items.Count - 1) * 100d
         }).ToArray();

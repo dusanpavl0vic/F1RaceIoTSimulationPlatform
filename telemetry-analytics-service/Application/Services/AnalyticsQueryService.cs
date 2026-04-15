@@ -14,6 +14,21 @@ public sealed class AnalyticsQueryService(
     private readonly IInfluxTelemetryClient _influxTelemetryClient = influxTelemetryClient;
     private readonly AnalyticsOptions _analyticsOptions = analyticsOptions.Value;
 
+    public Task<IReadOnlyList<SessionOverviewDto>> ListSessionsAsync(CancellationToken cancellationToken)
+        => _analyticsRepository.ListSessionsAsync(cancellationToken);
+
+    public Task<SessionOverviewDto?> GetSessionOverviewAsync(string sessionId, CancellationToken cancellationToken)
+        => _analyticsRepository.GetSessionOverviewAsync(sessionId, cancellationToken);
+
+    public Task<IReadOnlyList<DriverSessionOverviewDto>> GetSessionDriversAsync(string sessionId, CancellationToken cancellationToken)
+        => _analyticsRepository.GetSessionDriversAsync(sessionId, cancellationToken);
+
+    public Task<(string DriverName, IReadOnlyList<DriverStintDto> Stints)> GetDriverStintsAsync(
+        string sessionId,
+        int driverNumber,
+        CancellationToken cancellationToken)
+        => _analyticsRepository.GetDriverStintsAsync(sessionId, driverNumber, cancellationToken);
+
     public Task<(string DriverName, IReadOnlyList<DriverLapSummaryDto> Laps)> GetDriverLapSummariesAsync(
         string sessionId,
         int driverNumber,

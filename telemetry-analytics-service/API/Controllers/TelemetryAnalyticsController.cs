@@ -9,6 +9,44 @@ public sealed class TelemetryAnalyticsController(IAnalyticsQueryService analytic
 {
     private readonly IAnalyticsQueryService _analyticsQueryService = analyticsQueryService;
 
+    [HttpGet("sessions")]
+    public async Task<IActionResult> GetSessions(CancellationToken cancellationToken)
+    {
+        var sessions = await _analyticsQueryService.ListSessionsAsync(cancellationToken);
+        return Ok(new { sessions });
+    }
+
+    [HttpGet("sessions/{sessionId}")]
+    public async Task<IActionResult> GetSessionOverview([FromRoute] string sessionId, CancellationToken cancellationToken)
+    {
+        var overview = await _analyticsQueryService.GetSessionOverviewAsync(sessionId, cancellationToken);
+        return overview is null ? NotFound() : Ok(overview);
+    }
+
+    [HttpGet("sessions/{sessionId}/drivers")]
+    public async Task<IActionResult> GetSessionDrivers([FromRoute] string sessionId, CancellationToken cancellationToken)
+    {
+        var drivers = await _analyticsQueryService.GetSessionDriversAsync(sessionId, cancellationToken);
+        return Ok(new
+        {
+            sessionId,
+            drivers
+        });
+    }
+
+    [HttpGet("drivers/{driverNumber:int}/stints")]
+    public async Task<IActionResult> GetDriverStints([FromRoute] int driverNumber, [FromQuery] string sessionId, CancellationToken cancellationToken)
+    {
+        var result = await _analyticsQueryService.GetDriverStintsAsync(sessionId, driverNumber, cancellationToken);
+        return Ok(new
+        {
+            sessionId,
+            driverNumber,
+            driverName = result.DriverName,
+            stints = result.Stints
+        });
+    }
+
     [HttpGet("drivers/{driverNumber:int}/laps")]
     public async Task<IActionResult> GetDriverLapSummaries([FromRoute] int driverNumber, [FromQuery] string sessionId, CancellationToken cancellationToken)
     {

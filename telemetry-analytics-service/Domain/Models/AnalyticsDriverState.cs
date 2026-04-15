@@ -8,9 +8,9 @@ public sealed class AnalyticsDriverState
     public string? FullName { get; set; }
     public string? TeamName { get; set; }
     public string? TeamColor { get; set; }
+    public int? GridPosition { get; set; }
     public int? Position { get; set; }
     public int? Line { get; set; }
-    public int? GridPosition { get; set; }
     public string? GapToLeader { get; set; }
     public string? IntervalToPositionAhead { get; set; }
     public int? CompletedLaps { get; set; }

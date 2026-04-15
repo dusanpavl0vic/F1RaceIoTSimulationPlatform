@@ -12,13 +12,14 @@ public sealed class PostgresAnalyticsRepository(
     IOptions<PostgresOptions> postgresOptions,
     ILogger<PostgresAnalyticsRepository> logger) : IAnalyticsRepository
 {
-    private readonly string _connectionString = postgresOptions.Value.ConnectionString;
+    private readonly string[] _connectionStrings = BuildCandidateConnectionStrings(postgresOptions.Value.ConnectionString);
     private readonly ILogger<PostgresAnalyticsRepository> _logger = logger;
+    private readonly object _connectionGate = new();
+    private string? _resolvedConnectionString;
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
 
         const string sql = """
             create table if not exists analytics_sessions (
@@ -41,6 +42,7 @@ public sealed class PostgresAnalyticsRepository(
                 full_name text null,
                 team_name text null,
                 team_color text null,
+                grid_position integer null,
                 primary key (session_id, driver_number)
             );
 
@@ -86,6 +88,8 @@ public sealed class PostgresAnalyticsRepository(
                 updated_at timestamptz not null,
                 primary key (session_id, driver_number, stint_number)
             );
+
+            alter table analytics_drivers add column if not exists grid_position integer null;
             """;
 
         await using var command = new NpgsqlCommand(sql, connection);
@@ -112,8 +116,7 @@ public sealed class PostgresAnalyticsRepository(
                 updated_at = excluded.updated_at;
             """;
 
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddWithValue("session_id", session.SessionId);
         command.Parameters.AddWithValue("meeting_name", (object?)session.MeetingName ?? DBNull.Value);
@@ -131,20 +134,20 @@ public sealed class PostgresAnalyticsRepository(
     {
         const string sql = """
             insert into analytics_drivers (
-                session_id, driver_number, abbreviation, broadcast_name, full_name, team_name, team_color
+                session_id, driver_number, abbreviation, broadcast_name, full_name, team_name, team_color, grid_position
             ) values (
-                @session_id, @driver_number, @abbreviation, @broadcast_name, @full_name, @team_name, @team_color
+                @session_id, @driver_number, @abbreviation, @broadcast_name, @full_name, @team_name, @team_color, @grid_position
             )
             on conflict (session_id, driver_number) do update set
                 abbreviation = excluded.abbreviation,
                 broadcast_name = excluded.broadcast_name,
                 full_name = excluded.full_name,
                 team_name = excluded.team_name,
-                team_color = excluded.team_color;
+                team_color = excluded.team_color,
+                grid_position = excluded.grid_position;
             """;
 
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddWithValue("session_id", sessionId);
         command.Parameters.AddWithValue("driver_number", driver.DriverNumber);
@@ -153,6 +156,7 @@ public sealed class PostgresAnalyticsRepository(
         command.Parameters.AddWithValue("full_name", (object?)driver.FullName ?? DBNull.Value);
         command.Parameters.AddWithValue("team_name", (object?)driver.TeamName ?? DBNull.Value);
         command.Parameters.AddWithValue("team_color", (object?)driver.TeamColor ?? DBNull.Value);
+        command.Parameters.AddWithValue("grid_position", (object?)driver.GridPosition ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -194,8 +198,7 @@ public sealed class PostgresAnalyticsRepository(
                 updated_at = excluded.updated_at;
             """;
 
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddWithValue("session_id", lapSummary.SessionId);
         command.Parameters.AddWithValue("driver_number", lapSummary.DriverNumber);
@@ -243,8 +246,7 @@ public sealed class PostgresAnalyticsRepository(
                 updated_at = excluded.updated_at;
             """;
 
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddWithValue("session_id", stintSummary.SessionId);
         command.Parameters.AddWithValue("driver_number", stintSummary.DriverNumber);
@@ -256,6 +258,213 @@ public sealed class PostgresAnalyticsRepository(
         command.Parameters.AddWithValue("lap_count", (object?)stintSummary.LapCount ?? DBNull.Value);
         command.Parameters.AddWithValue("updated_at", stintSummary.UpdatedAt);
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<SessionOverviewDto>> ListSessionsAsync(CancellationToken cancellationToken)
+    {
+        const string sql = """
+            select
+                s.session_id,
+                s.meeting_name,
+                s.session_name,
+                s.session_status,
+                s.track_status_code,
+                s.track_status_label,
+                s.current_lap,
+                s.total_laps,
+                coalesce(driver_counts.driver_count, 0) as driver_count,
+                coalesce(lap_counts.completed_lap_count, 0) as completed_lap_count,
+                s.updated_at
+            from analytics_sessions s
+            left join (
+                select session_id, count(*) as driver_count
+                from analytics_drivers
+                group by session_id
+            ) driver_counts on driver_counts.session_id = s.session_id
+            left join (
+                select session_id, count(*) as completed_lap_count
+                from analytics_lap_summaries
+                group by session_id
+            ) lap_counts on lap_counts.session_id = s.session_id
+            order by s.updated_at desc, s.session_id;
+            """;
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var sessions = new List<SessionOverviewDto>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            sessions.Add(MapSessionOverview(reader));
+        }
+
+        return sessions;
+    }
+
+    public async Task<SessionOverviewDto?> GetSessionOverviewAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            select
+                s.session_id,
+                s.meeting_name,
+                s.session_name,
+                s.session_status,
+                s.track_status_code,
+                s.track_status_label,
+                s.current_lap,
+                s.total_laps,
+                coalesce(driver_counts.driver_count, 0) as driver_count,
+                coalesce(lap_counts.completed_lap_count, 0) as completed_lap_count,
+                s.updated_at
+            from analytics_sessions s
+            left join (
+                select session_id, count(*) as driver_count
+                from analytics_drivers
+                group by session_id
+            ) driver_counts on driver_counts.session_id = s.session_id
+            left join (
+                select session_id, count(*) as completed_lap_count
+                from analytics_lap_summaries
+                group by session_id
+            ) lap_counts on lap_counts.session_id = s.session_id
+            where s.session_id = @session_id;
+            """;
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("session_id", sessionId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? MapSessionOverview(reader) : null;
+    }
+
+    public async Task<IReadOnlyList<DriverSessionOverviewDto>> GetSessionDriversAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            select
+                d.driver_number,
+                coalesce(d.abbreviation, d.broadcast_name, d.full_name, '#' || d.driver_number::text) as driver_name,
+                d.team_name,
+                d.team_color,
+                d.grid_position,
+                latest_lap.position,
+                latest_lap.lap_number as completed_laps,
+                latest_lap.best_lap_time_label,
+                latest_lap.best_lap_time_ms,
+                latest_lap.lap_time_label,
+                latest_lap.lap_time_ms,
+                latest_stint.compound,
+                latest_stint.lap_count,
+                latest_stint.stint_number,
+                latest_lap.gap_to_leader,
+                latest_lap.interval_to_ahead
+            from analytics_drivers d
+            left join lateral (
+                select
+                    lap_number,
+                    position,
+                    best_lap_time_label,
+                    best_lap_time_ms,
+                    lap_time_label,
+                    lap_time_ms,
+                    gap_to_leader,
+                    interval_to_ahead
+                from analytics_lap_summaries
+                where session_id = d.session_id
+                  and driver_number = d.driver_number
+                order by lap_number desc
+                limit 1
+            ) latest_lap on true
+            left join lateral (
+                select
+                    compound,
+                    lap_count,
+                    stint_number
+                from analytics_stint_summaries
+                where session_id = d.session_id
+                  and driver_number = d.driver_number
+                order by stint_number desc
+                limit 1
+            ) latest_stint on true
+            where d.session_id = @session_id
+            order by coalesce(latest_lap.position, 999), coalesce(d.grid_position, 999), d.driver_number;
+            """;
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("session_id", sessionId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var drivers = new List<DriverSessionOverviewDto>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            drivers.Add(new DriverSessionOverviewDto(
+                reader.GetInt32(0),
+                reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                reader.IsDBNull(5) ? null : reader.GetInt32(5),
+                reader.IsDBNull(6) ? null : reader.GetInt32(6),
+                reader.IsDBNull(7) ? null : reader.GetString(7),
+                reader.IsDBNull(8) ? null : reader.GetInt32(8),
+                reader.IsDBNull(9) ? null : reader.GetString(9),
+                reader.IsDBNull(10) ? null : reader.GetInt32(10),
+                reader.IsDBNull(11) ? null : reader.GetString(11),
+                reader.IsDBNull(12) ? null : reader.GetInt32(12),
+                reader.IsDBNull(13) ? null : reader.GetInt32(13),
+                reader.IsDBNull(14) ? null : reader.GetString(14),
+                reader.IsDBNull(15) ? null : reader.GetString(15)));
+        }
+
+        return drivers;
+    }
+
+    public async Task<(string DriverName, IReadOnlyList<DriverStintDto> Stints)> GetDriverStintsAsync(string sessionId, int driverNumber, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            select
+                coalesce(d.abbreviation, d.broadcast_name, d.full_name, '#' || @driver_number::text) as driver_name,
+                s.stint_number,
+                s.compound,
+                s.tyre_is_new,
+                s.start_lap,
+                s.end_lap,
+                s.lap_count,
+                s.updated_at
+            from analytics_stint_summaries s
+            left join analytics_drivers d
+                on d.session_id = s.session_id
+               and d.driver_number = s.driver_number
+            where s.session_id = @session_id
+              and s.driver_number = @driver_number
+            order by s.stint_number;
+            """;
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("session_id", sessionId);
+        command.Parameters.AddWithValue("driver_number", driverNumber);
+
+        var stints = new List<DriverStintDto>();
+        var driverName = $"#{driverNumber}";
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            driverName = reader.GetString(0);
+            stints.Add(new DriverStintDto(
+                reader.GetInt32(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetBoolean(3),
+                reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                reader.IsDBNull(5) ? null : reader.GetInt32(5),
+                reader.IsDBNull(6) ? null : reader.GetInt32(6),
+                reader.GetFieldValue<DateTimeOffset>(7)));
+        }
+
+        return (driverName, stints);
     }
 
     public async Task<(string DriverName, IReadOnlyList<DriverLapSummaryDto> Laps)> GetDriverLapSummariesAsync(string sessionId, int driverNumber, CancellationToken cancellationToken)
@@ -293,8 +502,7 @@ public sealed class PostgresAnalyticsRepository(
             order by l.lap_number;
             """;
 
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddWithValue("session_id", sessionId);
         command.Parameters.AddWithValue("driver_number", driverNumber);
@@ -332,4 +540,93 @@ public sealed class PostgresAnalyticsRepository(
 
         return (driverName, laps);
     }
+
+    private async Task<NpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)
+    {
+        var resolvedConnectionString = _resolvedConnectionString;
+        if (!string.IsNullOrWhiteSpace(resolvedConnectionString))
+        {
+            return await OpenConnectionAsync(resolvedConnectionString, cancellationToken);
+        }
+
+        var failures = new List<string>();
+        foreach (var candidate in _connectionStrings)
+        {
+            try
+            {
+                var connection = await OpenConnectionAsync(candidate, cancellationToken);
+                lock (_connectionGate)
+                {
+                    _resolvedConnectionString ??= candidate;
+                }
+
+                return connection;
+            }
+            catch (Exception exception)
+            {
+                failures.Add(exception.Message);
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Unable to connect to PostgreSQL using the available analytics connection settings. Tried {_connectionStrings.Length} candidate connection string(s). Last errors: {string.Join(" | ", failures.TakeLast(3))}");
+    }
+
+    private static async Task<NpgsqlConnection> OpenConnectionAsync(string connectionString, CancellationToken cancellationToken)
+    {
+        var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        return connection;
+    }
+
+    private static string[] BuildCandidateConnectionStrings(string configuredConnectionString)
+    {
+        var candidates = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(configuredConnectionString))
+        {
+            candidates.Add(configuredConnectionString);
+
+            var configured = new NpgsqlConnectionStringBuilder(configuredConnectionString);
+            candidates.Add(new NpgsqlConnectionStringBuilder(configuredConnectionString)
+            {
+                Password = string.Empty
+            }.ConnectionString);
+
+            candidates.Add(new NpgsqlConnectionStringBuilder(configuredConnectionString)
+            {
+                Username = "postgres",
+                Password = string.Empty
+            }.ConnectionString);
+
+            candidates.Add(new NpgsqlConnectionStringBuilder(configuredConnectionString)
+            {
+                Username = "postgres",
+                Password = "postgres"
+            }.ConnectionString);
+        }
+
+        candidates.Add("Host=postgres;Port=5432;Database=f1_telemetry;Username=postgres");
+        candidates.Add("Host=postgres;Port=5432;Database=f1_telemetry;Username=postgres;Password=postgres");
+        candidates.Add("Host=postgres;Port=5432;Database=f1_telemetry;Username=f1;Password=f1_password");
+
+        return candidates
+            .Where(candidate => !string.IsNullOrWhiteSpace(candidate))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static SessionOverviewDto MapSessionOverview(IDataRecord record)
+        => new(
+            record.GetString(0),
+            record.IsDBNull(1) ? null : record.GetString(1),
+            record.IsDBNull(2) ? null : record.GetString(2),
+            record.IsDBNull(3) ? null : record.GetString(3),
+            record.IsDBNull(4) ? null : record.GetString(4),
+            record.IsDBNull(5) ? null : record.GetString(5),
+            record.IsDBNull(6) ? null : record.GetInt32(6),
+            record.IsDBNull(7) ? null : record.GetInt32(7),
+            record.GetInt32(8),
+            record.GetInt32(9),
+            (DateTimeOffset)record.GetValue(10));
 }
