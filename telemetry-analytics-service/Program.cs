@@ -26,6 +26,7 @@ builder.Services.Configure<InfluxDbOptions>(builder.Configuration.GetSection(Inf
 builder.Services.Configure<AnalyticsOptions>(builder.Configuration.GetSection(AnalyticsOptions.SectionName));
 
 builder.Services.AddSingleton<AnalyticsStateStore>();
+builder.Services.AddSingleton<TelemetryStreamHub>();
 builder.Services.AddSingleton<IAnalyticsRepository, PostgresAnalyticsRepository>();
 builder.Services.AddSingleton<IAnalyticsQueryService, AnalyticsQueryService>();
 builder.Services.AddSingleton<TelemetryAnalyticsWorker>();

@@ -1,10 +1,87 @@
 using F1.TelemetryAnalytics.Service.Application.Contracts;
+using F1.TelemetryAnalytics.Service.Application.Services;
+using F1.TelemetryAnalytics.Service.Domain.Models;
 
 namespace F1.TelemetryAnalytics.Service.Grpc;
 
-public sealed class TelemetryAnalyticsGrpcService(IAnalyticsQueryService analyticsQueryService) : TelemetryAnalytics.TelemetryAnalyticsBase
+public sealed class TelemetryAnalyticsGrpcService(
+    IAnalyticsQueryService analyticsQueryService,
+    TelemetryStreamHub telemetryStreamHub) : TelemetryAnalytics.TelemetryAnalyticsBase
 {
     private readonly IAnalyticsQueryService _analyticsQueryService = analyticsQueryService;
+    private readonly TelemetryStreamHub _telemetryStreamHub = telemetryStreamHub;
+
+    public override async Task<ListSessionsResponse> ListSessions(ListSessionsRequest request, global::Grpc.Core.ServerCallContext context)
+    {
+        var sessions = await _analyticsQueryService.ListSessionsAsync(context.CancellationToken);
+        var response = new ListSessionsResponse();
+        response.Sessions.AddRange(sessions.Select(MapSessionOverview));
+        return response;
+    }
+
+    public override async Task<SessionOverviewResponse> GetSessionOverview(SessionOverviewRequest request, global::Grpc.Core.ServerCallContext context)
+    {
+        var session = await _analyticsQueryService.GetSessionOverviewAsync(request.SessionId, context.CancellationToken);
+        return new SessionOverviewResponse
+        {
+            Session = session is null ? null : MapSessionOverview(session)
+        };
+    }
+
+    public override async Task<SessionDriversResponse> GetSessionDrivers(SessionDriversRequest request, global::Grpc.Core.ServerCallContext context)
+    {
+        var drivers = await _analyticsQueryService.GetSessionDriversAsync(request.SessionId, context.CancellationToken);
+        var response = new SessionDriversResponse
+        {
+            SessionId = request.SessionId
+        };
+
+        response.Drivers.AddRange(drivers.Select(driver => new DriverSessionOverview
+        {
+            DriverNumber = driver.DriverNumber,
+            DriverName = driver.DriverName,
+            TeamName = driver.TeamName ?? string.Empty,
+            TeamColor = driver.TeamColor ?? string.Empty,
+            GridPosition = driver.GridPosition ?? 0,
+            Position = driver.Position ?? 0,
+            CompletedLaps = driver.CompletedLaps ?? 0,
+            BestLapTime = driver.BestLapTime ?? string.Empty,
+            BestLapTimeMs = driver.BestLapTimeMs ?? 0,
+            LastLapTime = driver.LastLapTime ?? string.Empty,
+            LastLapTimeMs = driver.LastLapTimeMs ?? 0,
+            CurrentCompound = driver.CurrentCompound ?? string.Empty,
+            TyreLaps = driver.TyreLaps ?? 0,
+            CurrentStintNumber = driver.CurrentStintNumber ?? 0,
+            GapToLeader = driver.GapToLeader ?? string.Empty,
+            IntervalToAhead = driver.IntervalToAhead ?? string.Empty
+        }));
+
+        return response;
+    }
+
+    public override async Task<DriverStintsResponse> GetDriverStints(DriverStintsRequest request, global::Grpc.Core.ServerCallContext context)
+    {
+        var (driverName, stints) = await _analyticsQueryService.GetDriverStintsAsync(request.SessionId, request.DriverNumber, context.CancellationToken);
+        var response = new DriverStintsResponse
+        {
+            SessionId = request.SessionId,
+            DriverNumber = request.DriverNumber,
+            DriverName = driverName
+        };
+
+        response.Stints.AddRange(stints.Select(stint => new DriverStint
+        {
+            StintNumber = stint.StintNumber,
+            Compound = stint.Compound ?? string.Empty,
+            TyreIsNew = stint.TyreIsNew ?? false,
+            StartLap = stint.StartLap ?? 0,
+            EndLap = stint.EndLap ?? 0,
+            LapCount = stint.LapCount ?? 0,
+            UpdatedAt = stint.UpdatedAt.ToString("O")
+        }));
+
+        return response;
+    }
 
     public override async Task<DriverLapSummariesResponse> GetDriverLapSummaries(DriverLapSummariesRequest request, global::Grpc.Core.ServerCallContext context)
     {
@@ -108,6 +185,35 @@ public sealed class TelemetryAnalyticsGrpcService(IAnalyticsQueryService analyti
         return response;
     }
 
+    public override async Task<DriverTelemetryResponse> GetLatestDriverTelemetry(DriverTelemetryRequest request, global::Grpc.Core.ServerCallContext context)
+    {
+        var response = new DriverTelemetryResponse
+        {
+            SessionId = request.SessionId,
+            DriverNumber = request.DriverNumber
+        };
+        response.Samples.AddRange(_telemetryStreamHub
+            .GetRecent(request.SessionId, request.DriverNumber, request.MaxSamples <= 0 ? 200 : request.MaxSamples)
+            .Select(MapLiveTelemetrySample));
+
+        return response;
+    }
+
+    public override async Task StreamDriverTelemetry(
+        DriverTelemetryStreamRequest request,
+        global::Grpc.Core.IServerStreamWriter<LiveTelemetrySample> responseStream,
+        global::Grpc.Core.ServerCallContext context)
+    {
+        await foreach (var sample in _telemetryStreamHub.Subscribe(
+                           request.SessionId,
+                           request.DriverNumber,
+                           request.RecentSampleCount,
+                           context.CancellationToken))
+        {
+            await responseStream.WriteAsync(MapLiveTelemetrySample(sample));
+        }
+    }
+
     private static DriverLapSeries MapLapSeries(Application.Models.DriverLapSeriesDto series)
     {
         var output = new DriverLapSeries
@@ -125,9 +231,48 @@ public sealed class TelemetryAnalyticsGrpcService(IAnalyticsQueryService analyti
             ThrottlePct = point.ThrottlePct,
             BrakePct = point.BrakePct,
             Gear = point.Gear,
-            DrsEnabled = point.DrsEnabled
+            DrsEnabled = point.DrsEnabled,
+            Rpm = point.Rpm,
+            SampleIndex = point.SampleIndex,
+            RawThrottle = point.RawThrottle,
+            RawBrake = point.RawBrake
         }));
 
         return output;
     }
+
+    private static SessionOverview MapSessionOverview(Application.Models.SessionOverviewDto session)
+        => new()
+        {
+            SessionId = session.SessionId,
+            MeetingName = session.MeetingName ?? string.Empty,
+            SessionName = session.SessionName ?? string.Empty,
+            SessionStatus = session.SessionStatus ?? string.Empty,
+            TrackStatusCode = session.TrackStatusCode ?? string.Empty,
+            TrackStatusLabel = session.TrackStatusLabel ?? string.Empty,
+            CurrentLap = session.CurrentLap ?? 0,
+            TotalLaps = session.TotalLaps ?? 0,
+            DriverCount = session.DriverCount,
+            CompletedLapCount = session.CompletedLapCount,
+            UpdatedAt = session.UpdatedAt.ToString("O")
+        };
+
+    private static LiveTelemetrySample MapLiveTelemetrySample(TelemetrySampleRecord sample)
+        => new()
+        {
+            SessionId = sample.SessionId,
+            DriverNumber = sample.DriverNumber,
+            LapNumber = sample.LapNumber,
+            StintNumber = sample.StintNumber,
+            SampleIndex = sample.SampleIndex,
+            Timestamp = sample.Timestamp.ToString("O"),
+            Speed = sample.Speed ?? 0,
+            Rpm = sample.Rpm ?? 0,
+            ThrottlePct = sample.ThrottlePct ?? 0,
+            RawThrottle = sample.RawThrottle ?? 0,
+            BrakePct = sample.RawBrake ?? (sample.BrakeApplied is true ? 100d : 0d),
+            RawBrake = sample.RawBrake ?? 0,
+            Gear = sample.Gear ?? 0,
+            DrsEnabled = sample.DrsEnabled ?? false
+        };
 }

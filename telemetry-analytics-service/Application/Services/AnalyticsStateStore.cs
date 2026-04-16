@@ -277,7 +277,9 @@ public sealed class AnalyticsStateStore
         var rpm = TryParseInt(telemetry?["rpm"]?.ToString());
         var gear = TryParseInt(telemetry?["gear"]?.ToString());
         var throttlePct = TryParseInt(telemetry?["throttlePct"]?.ToString());
+        var rawThrottle = TryParseInt(telemetry?["rawThrottle"]?.ToString());
         var brakeApplied = TryParseBool(telemetry?["brakeApplied"]?.ToString());
+        var rawBrake = TryParseInt(telemetry?["rawBrake"]?.ToString());
         var drsEnabled = TryParseBool(telemetry?["drsEnabled"]?.ToString());
 
         driver.CurrentLapAggregate.Absorb(speed, throttlePct, brakeApplied, drsEnabled);
@@ -302,7 +304,9 @@ public sealed class AnalyticsStateStore
                 rpm,
                 gear,
                 throttlePct,
+                rawThrottle,
                 brakeApplied,
+                rawBrake,
                 drsEnabled));
     }
 

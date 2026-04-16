@@ -5,9 +5,93 @@ option csharp_namespace = "F1.TelemetryAnalytics.Service.Grpc";
 package telemetryanalytics;
 
 service TelemetryAnalytics {
+  rpc ListSessions (ListSessionsRequest) returns (ListSessionsResponse);
+  rpc GetSessionOverview (SessionOverviewRequest) returns (SessionOverviewResponse);
+  rpc GetSessionDrivers (SessionDriversRequest) returns (SessionDriversResponse);
+  rpc GetDriverStints (DriverStintsRequest) returns (DriverStintsResponse);
   rpc GetDriverLapSummaries (DriverLapSummariesRequest) returns (DriverLapSummariesResponse);
   rpc GetDriverSegmentBuckets (DriverSegmentBucketsRequest) returns (DriverSegmentBucketsResponse);
   rpc CompareDriversOnLap (CompareDriversOnLapRequest) returns (CompareDriversOnLapResponse);
+  rpc GetLatestDriverTelemetry (DriverTelemetryRequest) returns (DriverTelemetryResponse);
+  rpc StreamDriverTelemetry (DriverTelemetryStreamRequest) returns (stream LiveTelemetrySample);
+}
+
+message ListSessionsRequest {}
+
+message SessionOverviewRequest {
+  string session_id = 1;
+}
+
+message SessionDriversRequest {
+  string session_id = 1;
+}
+
+message DriverStintsRequest {
+  string session_id = 1;
+  int32 driver_number = 2;
+}
+
+message SessionOverview {
+  string session_id = 1;
+  string meeting_name = 2;
+  string session_name = 3;
+  string session_status = 4;
+  string track_status_code = 5;
+  string track_status_label = 6;
+  int32 current_lap = 7;
+  int32 total_laps = 8;
+  int32 driver_count = 9;
+  int32 completed_lap_count = 10;
+  string updated_at = 11;
+}
+
+message ListSessionsResponse {
+  repeated SessionOverview sessions = 1;
+}
+
+message SessionOverviewResponse {
+  SessionOverview session = 1;
+}
+
+message DriverSessionOverview {
+  int32 driver_number = 1;
+  string driver_name = 2;
+  string team_name = 3;
+  string team_color = 4;
+  int32 grid_position = 5;
+  int32 position = 6;
+  int32 completed_laps = 7;
+  string best_lap_time = 8;
+  int32 best_lap_time_ms = 9;
+  string last_lap_time = 10;
+  int32 last_lap_time_ms = 11;
+  string current_compound = 12;
+  int32 tyre_laps = 13;
+  int32 current_stint_number = 14;
+  string gap_to_leader = 15;
+  string interval_to_ahead = 16;
+}
+
+message SessionDriversResponse {
+  string session_id = 1;
+  repeated DriverSessionOverview drivers = 2;
+}
+
+message DriverStint {
+  int32 stint_number = 1;
+  string compound = 2;
+  bool tyre_is_new = 3;
+  int32 start_lap = 4;
+  int32 end_lap = 5;
+  int32 lap_count = 6;
+  string updated_at = 7;
+}
+
+message DriverStintsResponse {
+  string session_id = 1;
+  int32 driver_number = 2;
+  string driver_name = 3;
+  repeated DriverStint stints = 4;
 }
 
 message DriverLapSummariesRequest {
@@ -87,6 +171,10 @@ message TelemetryPoint {
   double brake_pct = 5;
   int32 gear = 6;
   bool drs_enabled = 7;
+  int32 rpm = 8;
+  int32 sample_index = 9;
+  int32 raw_throttle = 10;
+  int32 raw_brake = 11;
 }
 
 message DriverLapSeries {
@@ -113,4 +201,39 @@ message CompareDriversOnLapResponse {
   DriverLapSeries left = 3;
   DriverLapSeries right = 4;
   repeated SegmentComparisonBucket bucket_compare = 5;
+}
+
+message DriverTelemetryRequest {
+  string session_id = 1;
+  int32 driver_number = 2;
+  int32 max_samples = 3;
+}
+
+message DriverTelemetryResponse {
+  string session_id = 1;
+  int32 driver_number = 2;
+  repeated LiveTelemetrySample samples = 3;
+}
+
+message DriverTelemetryStreamRequest {
+  string session_id = 1;
+  int32 driver_number = 2;
+  int32 recent_sample_count = 3;
+}
+
+message LiveTelemetrySample {
+  string session_id = 1;
+  int32 driver_number = 2;
+  int32 lap_number = 3;
+  int32 stint_number = 4;
+  int32 sample_index = 5;
+  string timestamp = 6;
+  int32 speed = 7;
+  int32 rpm = 8;
+  int32 throttle_pct = 9;
+  int32 raw_throttle = 10;
+  double brake_pct = 11;
+  int32 raw_brake = 12;
+  int32 gear = 13;
+  bool drs_enabled = 14;
 }

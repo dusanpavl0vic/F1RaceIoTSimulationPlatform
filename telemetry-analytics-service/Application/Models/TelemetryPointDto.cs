@@ -7,4 +7,8 @@ public sealed record TelemetryPointDto(
     int ThrottlePct,
     double BrakePct,
     int Gear,
-    bool DrsEnabled);
+    bool DrsEnabled,
+    int Rpm,
+    int SampleIndex,
+    int RawThrottle,
+    int RawBrake);

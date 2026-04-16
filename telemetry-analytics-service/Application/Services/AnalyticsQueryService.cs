@@ -8,10 +8,12 @@ namespace F1.TelemetryAnalytics.Service.Application.Services;
 public sealed class AnalyticsQueryService(
     IAnalyticsRepository analyticsRepository,
     IInfluxTelemetryClient influxTelemetryClient,
+    TelemetryStreamHub telemetryStreamHub,
     IOptions<AnalyticsOptions> analyticsOptions) : IAnalyticsQueryService
 {
     private readonly IAnalyticsRepository _analyticsRepository = analyticsRepository;
     private readonly IInfluxTelemetryClient _influxTelemetryClient = influxTelemetryClient;
+    private readonly TelemetryStreamHub _telemetryStreamHub = telemetryStreamHub;
     private readonly AnalyticsOptions _analyticsOptions = analyticsOptions.Value;
 
     public Task<IReadOnlyList<SessionOverviewDto>> ListSessionsAsync(CancellationToken cancellationToken)
@@ -81,6 +83,33 @@ public sealed class AnalyticsQueryService(
             new DriverLapSeriesDto(leftDriverNumber, leftDriverName, lapNumber, leftTelemetry),
             new DriverLapSeriesDto(rightDriverNumber, rightDriverName, lapNumber, rightTelemetry),
             pairedBuckets);
+    }
+
+    public Task<IReadOnlyList<TelemetryPointDto>> GetLatestDriverTelemetryAsync(
+        string sessionId,
+        int driverNumber,
+        int maxSamples,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var samples = _telemetryStreamHub
+            .GetRecent(sessionId, driverNumber, maxSamples <= 0 ? 200 : maxSamples)
+            .Select(sample => new TelemetryPointDto(
+                0d,
+                sample.Timestamp.ToString("O"),
+                sample.Speed ?? 0,
+                sample.ThrottlePct ?? 0,
+                sample.RawBrake ?? (sample.BrakeApplied is true ? 100d : 0d),
+                sample.Gear ?? 0,
+                sample.DrsEnabled ?? false,
+                sample.Rpm ?? 0,
+                sample.SampleIndex,
+                sample.RawThrottle ?? 0,
+                sample.RawBrake ?? 0))
+            .ToArray();
+
+        return Task.FromResult<IReadOnlyList<TelemetryPointDto>>(samples);
     }
 
     private static IReadOnlyList<SegmentBucketDto> BuildSegmentBuckets(IReadOnlyList<TelemetryPointDto> telemetry, int bucketCount)

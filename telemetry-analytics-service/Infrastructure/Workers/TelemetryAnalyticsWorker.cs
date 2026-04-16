@@ -10,6 +10,7 @@ namespace F1.TelemetryAnalytics.Service.Infrastructure.Workers;
 
 public sealed class TelemetryAnalyticsWorker(
     AnalyticsStateStore analyticsStateStore,
+    TelemetryStreamHub telemetryStreamHub,
     IAnalyticsRepository analyticsRepository,
     IInfluxTelemetryClient influxTelemetryClient,
     IOptions<MqttOptions> mqttOptions,
@@ -33,6 +34,7 @@ public sealed class TelemetryAnalyticsWorker(
     };
 
     private readonly AnalyticsStateStore _analyticsStateStore = analyticsStateStore;
+    private readonly TelemetryStreamHub _telemetryStreamHub = telemetryStreamHub;
     private readonly IAnalyticsRepository _analyticsRepository = analyticsRepository;
     private readonly IInfluxTelemetryClient _influxTelemetryClient = influxTelemetryClient;
     private readonly MqttOptions _mqttOptions = mqttOptions.Value;
@@ -110,6 +112,7 @@ public sealed class TelemetryAnalyticsWorker(
 
                     if (outcome.TelemetrySample is not null)
                     {
+                        _telemetryStreamHub.Publish(outcome.TelemetrySample);
                         await _influxTelemetryClient.WriteTelemetrySampleAsync(outcome.TelemetrySample, stoppingToken);
                     }
                 }

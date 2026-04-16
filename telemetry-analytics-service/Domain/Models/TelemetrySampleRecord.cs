@@ -11,5 +11,7 @@ public sealed record TelemetrySampleRecord(
     int? Rpm,
     int? Gear,
     int? ThrottlePct,
+    int? RawThrottle,
     bool? BrakeApplied,
+    int? RawBrake,
     bool? DrsEnabled);

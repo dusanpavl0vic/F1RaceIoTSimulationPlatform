@@ -63,7 +63,7 @@ public sealed class InfluxTelemetryClient(
               |> filter(fn: (r) => r.driver_number == "{{driverNumber}}")
               |> filter(fn: (r) => r.lap_number == "{{lapNumber}}")
               |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-              |> keep(columns: ["_time", "sample_index", "speed", "throttle_pct", "brake_pct", "gear", "drs_enabled"])
+              |> keep(columns: ["_time", "sample_index", "speed", "rpm", "throttle_pct", "raw_throttle", "brake_pct", "raw_brake", "gear", "drs_enabled"])
               |> sort(columns: ["sample_index", "_time"])
             """;
 
@@ -111,7 +111,17 @@ public sealed class InfluxTelemetryClient(
             fields.Add($"throttle_pct={throttlePct}i");
         }
 
-        if (sample.BrakeApplied is bool brakeApplied)
+        if (sample.RawThrottle is int rawThrottle)
+        {
+            fields.Add($"raw_throttle={rawThrottle}i");
+        }
+
+        if (sample.RawBrake is int rawBrake)
+        {
+            fields.Add($"brake_pct={rawBrake}i");
+            fields.Add($"raw_brake={rawBrake}i");
+        }
+        else if (sample.BrakeApplied is bool brakeApplied)
         {
             fields.Add($"brake_pct={(brakeApplied ? 100 : 0)}i");
         }
@@ -189,8 +199,11 @@ public sealed class InfluxTelemetryClient(
         var timeIndex = Array.IndexOf(headers, "_time");
         var sampleIndex = Array.IndexOf(headers, "sample_index");
         var speedIndex = Array.IndexOf(headers, "speed");
+        var rpmIndex = Array.IndexOf(headers, "rpm");
         var throttleIndex = Array.IndexOf(headers, "throttle_pct");
+        var rawThrottleIndex = Array.IndexOf(headers, "raw_throttle");
         var brakeIndex = Array.IndexOf(headers, "brake_pct");
+        var rawBrakeIndex = Array.IndexOf(headers, "raw_brake");
         var gearIndex = Array.IndexOf(headers, "gear");
         var drsIndex = Array.IndexOf(headers, "drs_enabled");
 
@@ -207,7 +220,11 @@ public sealed class InfluxTelemetryClient(
                     ParseInt(columns, throttleIndex),
                     ParseDouble(columns, brakeIndex),
                     ParseInt(columns, gearIndex),
-                    ParseBool(columns, drsIndex))));
+                    ParseBool(columns, drsIndex),
+                    ParseInt(columns, rpmIndex),
+                    ParseInt(columns, sampleIndex),
+                    ParseInt(columns, rawThrottleIndex),
+                    ParseInt(columns, rawBrakeIndex))));
         }
 
         items = items
