@@ -38,6 +38,7 @@ builder.Services.Configure<MqttOptions>(builder.Configuration.GetSection(MqttOpt
 
 builder.Services.AddHttpClient("ReplayBootstrap");
 
+builder.Services.AddSingleton<ReplayApplicationService>();
 builder.Services.AddSingleton<IReplayCoordinator, ReplayCoordinator>();
 builder.Services.AddSingleton<IReplayExecutionQueue, ReplayExecutionQueue>();
 builder.Services.AddSingleton<IReplayConfigurationLoader, ReplayConfigurationLoader>();

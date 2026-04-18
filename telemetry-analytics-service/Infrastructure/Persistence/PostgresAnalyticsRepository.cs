@@ -3,6 +3,7 @@ using F1.TelemetryAnalytics.Service.Application.Contracts;
 using F1.TelemetryAnalytics.Service.Application.Models;
 using F1.TelemetryAnalytics.Service.Domain.Models;
 using F1.TelemetryAnalytics.Service.Infrastructure.Configuration;
+using F1.TelemetryAnalytics.Service.Infrastructure.Persistence.Mappers;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
@@ -296,7 +297,7 @@ public sealed class PostgresAnalyticsRepository(
         var sessions = new List<SessionOverviewDto>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            sessions.Add(MapSessionOverview(reader));
+            sessions.Add(PostgresAnalyticsRecordMapper.MapSessionOverview(reader));
         }
 
         return sessions;
@@ -336,7 +337,9 @@ public sealed class PostgresAnalyticsRepository(
         command.Parameters.AddWithValue("session_id", sessionId);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        return await reader.ReadAsync(cancellationToken) ? MapSessionOverview(reader) : null;
+        return await reader.ReadAsync(cancellationToken)
+            ? PostgresAnalyticsRecordMapper.MapSessionOverview(reader)
+            : null;
     }
 
     public async Task<IReadOnlyList<DriverSessionOverviewDto>> GetSessionDriversAsync(string sessionId, CancellationToken cancellationToken)
@@ -399,23 +402,7 @@ public sealed class PostgresAnalyticsRepository(
         var drivers = new List<DriverSessionOverviewDto>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            drivers.Add(new DriverSessionOverviewDto(
-                reader.GetInt32(0),
-                reader.GetString(1),
-                reader.IsDBNull(2) ? null : reader.GetString(2),
-                reader.IsDBNull(3) ? null : reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetInt32(4),
-                reader.IsDBNull(5) ? null : reader.GetInt32(5),
-                reader.IsDBNull(6) ? null : reader.GetInt32(6),
-                reader.IsDBNull(7) ? null : reader.GetString(7),
-                reader.IsDBNull(8) ? null : reader.GetInt32(8),
-                reader.IsDBNull(9) ? null : reader.GetString(9),
-                reader.IsDBNull(10) ? null : reader.GetInt32(10),
-                reader.IsDBNull(11) ? null : reader.GetString(11),
-                reader.IsDBNull(12) ? null : reader.GetInt32(12),
-                reader.IsDBNull(13) ? null : reader.GetInt32(13),
-                reader.IsDBNull(14) ? null : reader.GetString(14),
-                reader.IsDBNull(15) ? null : reader.GetString(15)));
+            drivers.Add(PostgresAnalyticsRecordMapper.MapDriverSessionOverview(reader));
         }
 
         return drivers;
@@ -454,14 +441,7 @@ public sealed class PostgresAnalyticsRepository(
         while (await reader.ReadAsync(cancellationToken))
         {
             driverName = reader.GetString(0);
-            stints.Add(new DriverStintDto(
-                reader.GetInt32(1),
-                reader.IsDBNull(2) ? null : reader.GetString(2),
-                reader.IsDBNull(3) ? null : reader.GetBoolean(3),
-                reader.IsDBNull(4) ? null : reader.GetInt32(4),
-                reader.IsDBNull(5) ? null : reader.GetInt32(5),
-                reader.IsDBNull(6) ? null : reader.GetInt32(6),
-                reader.GetFieldValue<DateTimeOffset>(7)));
+            stints.Add(PostgresAnalyticsRecordMapper.MapDriverStint(reader));
         }
 
         return (driverName, stints);
@@ -514,28 +494,7 @@ public sealed class PostgresAnalyticsRepository(
         while (await reader.ReadAsync(cancellationToken))
         {
             driverName = reader.GetString(0);
-            laps.Add(new DriverLapSummaryDto(
-                reader.GetInt32(1),
-                reader.IsDBNull(2) ? null : reader.GetInt32(2),
-                reader.IsDBNull(3) ? null : reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetInt32(4),
-                reader.IsDBNull(5) ? null : reader.GetString(5),
-                reader.IsDBNull(6) ? null : reader.GetInt32(6),
-                reader.IsDBNull(7) ? null : reader.GetString(7),
-                reader.IsDBNull(8) ? null : reader.GetInt32(8),
-                reader.IsDBNull(9) ? null : reader.GetString(9),
-                reader.IsDBNull(10) ? null : reader.GetInt32(10),
-                reader.IsDBNull(11) ? null : reader.GetString(11),
-                reader.IsDBNull(12) ? null : reader.GetInt32(12),
-                reader.IsDBNull(13) ? null : reader.GetString(13),
-                reader.IsDBNull(14) ? null : reader.GetBoolean(14),
-                reader.IsDBNull(15) ? null : reader.GetInt32(15),
-                reader.GetInt32(16),
-                reader.GetDouble(17),
-                reader.GetInt32(18),
-                reader.GetDouble(19),
-                reader.GetDouble(20),
-                reader.GetDouble(21)));
+            laps.Add(PostgresAnalyticsRecordMapper.MapDriverLapSummary(reader));
         }
 
         return (driverName, laps);
@@ -616,17 +575,4 @@ public sealed class PostgresAnalyticsRepository(
             .ToArray();
     }
 
-    private static SessionOverviewDto MapSessionOverview(IDataRecord record)
-        => new(
-            record.GetString(0),
-            record.IsDBNull(1) ? null : record.GetString(1),
-            record.IsDBNull(2) ? null : record.GetString(2),
-            record.IsDBNull(3) ? null : record.GetString(3),
-            record.IsDBNull(4) ? null : record.GetString(4),
-            record.IsDBNull(5) ? null : record.GetString(5),
-            record.IsDBNull(6) ? null : record.GetInt32(6),
-            record.IsDBNull(7) ? null : record.GetInt32(7),
-            record.GetInt32(8),
-            record.GetInt32(9),
-            (DateTimeOffset)record.GetValue(10));
 }

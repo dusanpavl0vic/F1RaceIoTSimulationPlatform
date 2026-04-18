@@ -1,10 +1,11 @@
-using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
 using F1.TelemetryAnalytics.Service.Application.Contracts;
 using F1.TelemetryAnalytics.Service.Application.Models;
 using F1.TelemetryAnalytics.Service.Domain.Models;
 using F1.TelemetryAnalytics.Service.Infrastructure.Configuration;
+using F1.TelemetryAnalytics.Service.Infrastructure.Persistence.Formatting;
+using F1.TelemetryAnalytics.Service.Infrastructure.Persistence.Parsing;
 using Microsoft.Extensions.Options;
 
 namespace F1.TelemetryAnalytics.Service.Infrastructure.Persistence;
@@ -25,7 +26,7 @@ public sealed class InfluxTelemetryClient(
             return;
         }
 
-        var line = BuildLineProtocol(sample);
+        var line = InfluxLineProtocolFormatter.Format(sample);
         using var response = await SendWithOptionalAuthRetryAsync(
             includeAuthorization =>
             {
@@ -85,72 +86,8 @@ public sealed class InfluxTelemetryClient(
 
         response.EnsureSuccessStatusCode();
         var payload = await response.Content.ReadAsStringAsync(cancellationToken);
-        return ParseTelemetryCsv(payload);
+        return InfluxTelemetryCsvParser.Parse(payload);
     }
-
-    private static string BuildLineProtocol(TelemetrySampleRecord sample)
-    {
-        var fields = new List<string>();
-        if (sample.Speed is int speed)
-        {
-            fields.Add($"speed={speed}i");
-        }
-
-        if (sample.Rpm is int rpm)
-        {
-            fields.Add($"rpm={rpm}i");
-        }
-
-        if (sample.Gear is int gear)
-        {
-            fields.Add($"gear={gear}i");
-        }
-
-        if (sample.ThrottlePct is int throttlePct)
-        {
-            fields.Add($"throttle_pct={throttlePct}i");
-        }
-
-        if (sample.RawThrottle is int rawThrottle)
-        {
-            fields.Add($"raw_throttle={rawThrottle}i");
-        }
-
-        if (sample.RawBrake is int rawBrake)
-        {
-            fields.Add($"brake_pct={rawBrake}i");
-            fields.Add($"raw_brake={rawBrake}i");
-        }
-        else if (sample.BrakeApplied is bool brakeApplied)
-        {
-            fields.Add($"brake_pct={(brakeApplied ? 100 : 0)}i");
-        }
-
-        if (sample.DrsEnabled is bool drsEnabled)
-        {
-            fields.Add($"drs_enabled={(drsEnabled ? "true" : "false")}");
-        }
-
-        fields.Add($"sample_index={sample.SampleIndex}i");
-
-        var tags = string.Join(',',
-        [
-            $"session_id={EscapeTag(sample.SessionId)}",
-            $"driver_number={sample.DriverNumber}",
-            $"lap_number={sample.LapNumber}",
-            $"stint_number={sample.StintNumber}"
-        ]);
-
-        var timestamp = sample.Timestamp.ToUnixTimeMilliseconds() * 1_000_000L;
-        return $"telemetry_samples,{tags} {string.Join(',', fields)} {timestamp}";
-    }
-
-    private static string EscapeTag(string value)
-        => value
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace(" ", "\\ ", StringComparison.Ordinal)
-            .Replace(",", "\\,", StringComparison.Ordinal)
-            .Replace("=", "\\=", StringComparison.Ordinal);
 
     private static string EscapeFluxString(string value)
         => value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
@@ -182,77 +119,4 @@ public sealed class InfluxTelemetryClient(
             request.Headers.Authorization = new AuthenticationHeaderValue("Token", _options.Token);
         }
     }
-
-    private static IReadOnlyList<TelemetryPointDto> ParseTelemetryCsv(string csv)
-    {
-        var lines = csv
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(line => !line.StartsWith('#'))
-            .ToArray();
-
-        if (lines.Length <= 1)
-        {
-            return [];
-        }
-
-        var headers = lines[0].Split(',');
-        var timeIndex = Array.IndexOf(headers, "_time");
-        var sampleIndex = Array.IndexOf(headers, "sample_index");
-        var speedIndex = Array.IndexOf(headers, "speed");
-        var rpmIndex = Array.IndexOf(headers, "rpm");
-        var throttleIndex = Array.IndexOf(headers, "throttle_pct");
-        var rawThrottleIndex = Array.IndexOf(headers, "raw_throttle");
-        var brakeIndex = Array.IndexOf(headers, "brake_pct");
-        var rawBrakeIndex = Array.IndexOf(headers, "raw_brake");
-        var gearIndex = Array.IndexOf(headers, "gear");
-        var drsIndex = Array.IndexOf(headers, "drs_enabled");
-
-        var items = new List<(int SampleIndex, TelemetryPointDto Point)>();
-        for (var index = 1; index < lines.Length; index++)
-        {
-            var columns = lines[index].Split(',');
-            items.Add((
-                ParseInt(columns, sampleIndex),
-                new TelemetryPointDto(
-                    0d,
-                    timeIndex >= 0 && timeIndex < columns.Length ? columns[timeIndex] : string.Empty,
-                    ParseInt(columns, speedIndex),
-                    ParseInt(columns, throttleIndex),
-                    ParseDouble(columns, brakeIndex),
-                    ParseInt(columns, gearIndex),
-                    ParseBool(columns, drsIndex),
-                    ParseInt(columns, rpmIndex),
-                    ParseInt(columns, sampleIndex),
-                    ParseInt(columns, rawThrottleIndex),
-                    ParseInt(columns, rawBrakeIndex))));
-        }
-
-        items = items
-            .OrderBy(item => item.SampleIndex)
-            .ThenBy(item => item.Point.Timestamp, StringComparer.Ordinal)
-            .ToList();
-
-        if (items.Count == 1)
-        {
-            return [items[0].Point with { ProgressPct = 100d }];
-        }
-
-        return items.Select((item, index) => item.Point with
-        {
-            ProgressPct = index / (double)Math.Max(1, items.Count - 1) * 100d
-        }).ToArray();
-    }
-
-    private static int ParseInt(string[] columns, int index)
-        => index >= 0 && index < columns.Length && int.TryParse(columns[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed
-            : 0;
-
-    private static double ParseDouble(string[] columns, int index)
-        => index >= 0 && index < columns.Length && double.TryParse(columns[index], NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed
-            : 0d;
-
-    private static bool ParseBool(string[] columns, int index)
-        => index >= 0 && index < columns.Length && bool.TryParse(columns[index], out var parsed) && parsed;
 }

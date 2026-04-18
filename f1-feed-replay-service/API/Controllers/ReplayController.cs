@@ -1,6 +1,6 @@
 using F1.FeedReplay.Service.API.Contracts;
-using F1.FeedReplay.Service.Application.Commands;
-using F1.FeedReplay.Service.Application.Contracts;
+using F1.FeedReplay.Service.API.Mappers;
+using F1.FeedReplay.Service.Application.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace F1.FeedReplay.Service.API.Controllers;
@@ -8,23 +8,12 @@ namespace F1.FeedReplay.Service.API.Controllers;
 [ApiController]
 [Route("api/replay")]
 public sealed class ReplayController(
-    IReplayCoordinator replayCoordinator,
-    IReplayBootstrapper replayBootstrapper) : ControllerBase
+    ReplayApplicationService replayApplicationService) : ControllerBase
 {
     [HttpPost("bootstrap")]
     public async Task<IActionResult> BootstrapAsync([FromBody] ReplayBootstrapRequest request, CancellationToken cancellationToken)
     {
-        var result = await replayBootstrapper.BootstrapAsync(
-            new BootstrapReplayCommand(
-                request.IndexUrl,
-                request.ConfigurationPath,
-                request.SessionId,
-                request.FeedNames,
-                DownloadFeeds: true,
-                ForceDownload: false,
-                LoadAfterDownload: true,
-                StartAfterLoad: false),
-            cancellationToken);
+        var result = await replayApplicationService.BootstrapAsync(ReplayRequestMapper.Map(request), cancellationToken);
 
         return Ok(result);
     }
@@ -32,48 +21,48 @@ public sealed class ReplayController(
     [HttpPost("load")]
     public async Task<IActionResult> LoadAsync([FromBody] LoadReplayRequest request, CancellationToken cancellationToken)
     {
-        var status = await replayCoordinator.LoadAsync(new LoadReplayCommand(request.ConfigurationPath), cancellationToken);
+        var status = await replayApplicationService.LoadAsync(ReplayRequestMapper.Map(request), cancellationToken);
         return Ok(status);
     }
 
     [HttpPost("start")]
     public async Task<IActionResult> StartAsync(CancellationToken cancellationToken)
     {
-        var status = await replayCoordinator.StartAsync(new StartReplayCommand(), cancellationToken);
+        var status = await replayApplicationService.StartAsync(cancellationToken);
         return Ok(status);
     }
 
     [HttpPost("pause")]
     public async Task<IActionResult> PauseAsync(CancellationToken cancellationToken)
     {
-        var status = await replayCoordinator.PauseAsync(new PauseReplayCommand(), cancellationToken);
+        var status = await replayApplicationService.PauseAsync(cancellationToken);
         return Ok(status);
     }
 
     [HttpPost("resume")]
     public async Task<IActionResult> ResumeAsync(CancellationToken cancellationToken)
     {
-        var status = await replayCoordinator.ResumeAsync(new ResumeReplayCommand(), cancellationToken);
+        var status = await replayApplicationService.ResumeAsync(cancellationToken);
         return Ok(status);
     }
 
     [HttpPost("stop")]
     public async Task<IActionResult> StopAsync(CancellationToken cancellationToken)
     {
-        var status = await replayCoordinator.StopAsync(new StopReplayCommand(), cancellationToken);
+        var status = await replayApplicationService.StopAsync(cancellationToken);
         return Ok(status);
     }
 
     [HttpPost("speed")]
     public async Task<IActionResult> ChangeSpeedAsync([FromBody] ChangeReplaySpeedRequest request, CancellationToken cancellationToken)
     {
-        var status = await replayCoordinator.ChangeReplaySpeedAsync(new ChangeReplaySpeedCommand(request.Speed), cancellationToken);
+        var status = await replayApplicationService.ChangeReplaySpeedAsync(ReplayRequestMapper.Map(request), cancellationToken);
         return Ok(status);
     }
 
     [HttpGet("status")]
     public ActionResult GetStatus()
     {
-        return Ok(replayCoordinator.GetStatus());
+        return Ok(replayApplicationService.GetStatus());
     }
 }

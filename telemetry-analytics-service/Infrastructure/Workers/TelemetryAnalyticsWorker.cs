@@ -9,34 +9,15 @@ using Microsoft.Extensions.Options;
 namespace F1.TelemetryAnalytics.Service.Infrastructure.Workers;
 
 public sealed class TelemetryAnalyticsWorker(
-    AnalyticsStateStore analyticsStateStore,
-    TelemetryStreamHub telemetryStreamHub,
     IAnalyticsRepository analyticsRepository,
-    IInfluxTelemetryClient influxTelemetryClient,
+    TelemetryAnalyticsIngestionService ingestionService,
     IOptions<MqttOptions> mqttOptions,
     ILogger<TelemetryAnalyticsWorker> logger) : BackgroundService
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
-    private static readonly HashSet<string> RelevantEventTypes = new(StringComparer.Ordinal)
-    {
-        "session.info.updated",
-        "session.status.updated",
-        "track.status.updated",
-        "lap.count.updated",
-        "driver.list.updated",
-        "timing.driver.updated",
-        "timing.stats.updated",
-        "timing.app.updated",
-        "lap.series.updated",
-        "tyres.current.updated",
-        "tyres.stint.updated",
-        "car.telemetry.updated"
-    };
 
-    private readonly AnalyticsStateStore _analyticsStateStore = analyticsStateStore;
-    private readonly TelemetryStreamHub _telemetryStreamHub = telemetryStreamHub;
     private readonly IAnalyticsRepository _analyticsRepository = analyticsRepository;
-    private readonly IInfluxTelemetryClient _influxTelemetryClient = influxTelemetryClient;
+    private readonly TelemetryAnalyticsIngestionService _ingestionService = ingestionService;
     private readonly MqttOptions _mqttOptions = mqttOptions.Value;
     private readonly ILogger<TelemetryAnalyticsWorker> _logger = logger;
 
@@ -78,43 +59,12 @@ public sealed class TelemetryAnalyticsWorker(
                     }
 
                     var canonicalEvent = JsonSerializer.Deserialize<CanonicalEvent>(message.Payload, SerializerOptions);
-                    if (canonicalEvent is null || !RelevantEventTypes.Contains(canonicalEvent.EventType))
+                    if (canonicalEvent is null)
                     {
                         continue;
                     }
 
-                    var outcome = _analyticsStateStore.Apply(canonicalEvent);
-                    if (!outcome.Applied)
-                    {
-                        continue;
-                    }
-
-                    if (outcome.SessionChanged)
-                    {
-                        await _analyticsRepository.UpsertSessionAsync(_analyticsStateStore.Snapshot(), stoppingToken);
-                    }
-
-                    if (outcome.DriverChanged && outcome.Driver is not null)
-                    {
-                        await _analyticsRepository.UpsertDriverAsync(canonicalEvent.SessionId, outcome.Driver, stoppingToken);
-                    }
-
-                    if (outcome.CurrentStint is not null)
-                    {
-                        var stint = outcome.CurrentStint with { SessionId = canonicalEvent.SessionId };
-                        await _analyticsRepository.UpsertStintSummaryAsync(stint, stoppingToken);
-                    }
-
-                    if (outcome.CompletedLap is not null)
-                    {
-                        await _analyticsRepository.UpsertLapSummaryAsync(outcome.CompletedLap, stoppingToken);
-                    }
-
-                    if (outcome.TelemetrySample is not null)
-                    {
-                        _telemetryStreamHub.Publish(outcome.TelemetrySample);
-                        await _influxTelemetryClient.WriteTelemetrySampleAsync(outcome.TelemetrySample, stoppingToken);
-                    }
+                    await _ingestionService.HandleAsync(canonicalEvent, stoppingToken);
                 }
                 catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
                 {

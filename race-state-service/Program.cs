@@ -52,6 +52,8 @@ builder.Services
     });
 
 builder.Services.AddSingleton<IRaceStateStore, RaceStateStore>();
+builder.Services.AddSingleton<RaceStateReadService>();
+builder.Services.AddSingleton<RaceStateAnalyticsService>();
 builder.Services.AddSingleton<RaceStateViewFactory>();
 builder.Services.AddSingleton<RaceStateBroadcaster>();
 builder.Services.AddSingleton<TelemetryAnalyticsGateway>();

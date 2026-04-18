@@ -27,6 +27,7 @@ builder.Services.Configure<AnalyticsOptions>(builder.Configuration.GetSection(An
 
 builder.Services.AddSingleton<AnalyticsStateStore>();
 builder.Services.AddSingleton<TelemetryStreamHub>();
+builder.Services.AddSingleton<TelemetryAnalyticsIngestionService>();
 builder.Services.AddSingleton<IAnalyticsRepository, PostgresAnalyticsRepository>();
 builder.Services.AddSingleton<IAnalyticsQueryService, AnalyticsQueryService>();
 builder.Services.AddSingleton<TelemetryAnalyticsWorker>();

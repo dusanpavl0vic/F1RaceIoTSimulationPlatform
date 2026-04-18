@@ -5,17 +5,15 @@ using F1.EventNormalizer.Service.Application.Services;
 namespace F1.EventNormalizer.Service.Infrastructure.Workers;
 
 public sealed class NormalizerWorker(
-    ICanonicalEventFactory canonicalEventFactory,
-    ICanonicalTopicMapper canonicalTopicMapper,
     IRawReplayEventSubscriber rawReplayEventSubscriber,
     ICanonicalEventPublisher canonicalEventPublisher,
+    NormalizerProcessingService processingService,
     NormalizerStatusStore statusStore,
     ILogger<NormalizerWorker> logger) : BackgroundService
 {
-    private readonly ICanonicalEventFactory _canonicalEventFactory = canonicalEventFactory;
-    private readonly ICanonicalTopicMapper _canonicalTopicMapper = canonicalTopicMapper;
     private readonly IRawReplayEventSubscriber _rawReplayEventSubscriber = rawReplayEventSubscriber;
     private readonly ICanonicalEventPublisher _canonicalEventPublisher = canonicalEventPublisher;
+    private readonly NormalizerProcessingService _processingService = processingService;
     private readonly NormalizerStatusStore _statusStore = statusStore;
     private readonly ILogger<NormalizerWorker> _logger = logger;
 
@@ -41,8 +39,7 @@ public sealed class NormalizerWorker(
                         continue;
                     }
 
-                    _statusStore.RecordConsumed(consumedEvent.Topic);
-                    await PublishCanonicalEventsAsync(consumedEvent, stoppingToken);
+                    await _processingService.ProcessAsync(consumedEvent, stoppingToken);
                 }
                 catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
                 {
@@ -77,17 +74,6 @@ public sealed class NormalizerWorker(
             await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
             await _rawReplayEventSubscriber.PingAsync(cancellationToken);
             await _canonicalEventPublisher.PingAsync(cancellationToken);
-        }
-    }
-
-    private async Task PublishCanonicalEventsAsync(ConsumedRawEvent consumedEvent, CancellationToken cancellationToken)
-    {
-        var canonicalEvents = _canonicalEventFactory.Create(consumedEvent.Event);
-        foreach (var canonicalEvent in canonicalEvents)
-        {
-            var topic = _canonicalTopicMapper.Map(canonicalEvent);
-            await _canonicalEventPublisher.PublishAsync(topic, canonicalEvent, cancellationToken);
-            _statusStore.RecordPublished(topic, 1);
         }
     }
 }

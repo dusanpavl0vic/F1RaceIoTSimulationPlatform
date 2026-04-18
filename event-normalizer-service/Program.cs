@@ -20,6 +20,7 @@ builder.Services.AddSingleton<ICanonicalTopicMapper, CanonicalTopicMapper>();
 builder.Services.AddSingleton<IPositionCoordinateResolver, PositionCoordinateResolver>();
 builder.Services.AddSingleton<IRawReplayEventSubscriber, RawReplayEventSubscriber>();
 builder.Services.AddSingleton<ICanonicalEventPublisher, CanonicalEventPublisher>();
+builder.Services.AddSingleton<NormalizerProcessingService>();
 builder.Services.AddSingleton<NormalizerStatusStore>();
 builder.Services.AddSingleton<NormalizerWorker>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<NormalizerWorker>());
