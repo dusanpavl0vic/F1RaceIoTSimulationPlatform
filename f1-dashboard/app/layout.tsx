@@ -1,8 +1,8 @@
+import "./globals.css";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
 import { Silkscreen } from "next/font/google";
 // @ts-ignore
-import "./globals.css";
-import { AppShell } from "@/components/layout/app-shell";
+import { AppShell } from "@/components/AppShell/app-shell";
 import { AppProvider } from "@/components/providers/app-provider";
 import type { Metadata } from "next";
 

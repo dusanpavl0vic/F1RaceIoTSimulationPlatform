@@ -37,10 +37,7 @@ export type AppUiTheme = {
   colors: AppUiColors;
   breakpoints: typeof appBreakpoints;
   devices: typeof appDevices;
-  layout: {
-    contentWidth: string;
-    mobileContentWidth: string;
-  };
+
   radius: {
     panel: string;
     card: string;
@@ -53,10 +50,7 @@ export const appUiTheme: AppUiTheme = {
   colors: appColors,
   breakpoints: appBreakpoints,
   devices: appDevices,
-  layout: {
-    contentWidth: "min(1240px, calc(100vw - 32px))",
-    mobileContentWidth: "min(100vw - 20px, 100%)",
-  },
+
   radius: {
     panel: "4px",
     card: "4px",

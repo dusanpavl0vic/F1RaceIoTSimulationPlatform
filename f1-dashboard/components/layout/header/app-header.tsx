@@ -1,13 +1,12 @@
 "use client";
 
-import { selectColorMode } from "@/features/app/store/selectors";
-import { toggleColorMode } from "@/features/app/store/app-ui-slice";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { selectColorMode } from "@/features/store/app/appSelectors";
+import { toggleColorMode } from "@/features/store/app/appUiSlice";
+import { useDispatch, useSelector } from "react-redux";
 import {
+  Logo,
   StyledHeader,
   StyledHeaderInner,
-  StyledLogoImg,
-  StyledLogoLink,
   StyledLogoSubtitle,
   StyledLogoTexts,
   StyledLogoTitle,
@@ -15,22 +14,19 @@ import {
   StyledToggleLabel,
   StyledToggleRow,
 } from "./app-header.styles";
-
 export function AppHeader() {
-  const dispatch = useAppDispatch();
-  const colorMode = useAppSelector(selectColorMode);
+  const dispatch = useDispatch();
+  const colorMode = useSelector(selectColorMode);
   const isDark = colorMode === "dark";
 
   return (
     <StyledHeader>
       <StyledHeaderInner>
-        <StyledLogoLink href="/">
-          <StyledLogoImg src="/logo.svg" alt="F1 Dashboard Logo" />
-          <StyledLogoTexts>
-            <StyledLogoTitle>RACE DASHBOARD</StyledLogoTitle>
-            <StyledLogoSubtitle>F1 IOT SIMULATION PLATFORM</StyledLogoSubtitle>
-          </StyledLogoTexts>
-        </StyledLogoLink>
+        <Logo />
+        <StyledLogoTexts>
+          <StyledLogoTitle>RACE DASHBOARD</StyledLogoTitle>
+          <StyledLogoSubtitle>F1 IOT SIMULATION PLATFORM</StyledLogoSubtitle>
+        </StyledLogoTexts>
 
         <StyledToggleRow>
           <StyledToggleLabel $active={!isDark}>LIGHT</StyledToggleLabel>

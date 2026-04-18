@@ -1,6 +1,6 @@
 # f1-dashboard
 
-Osnovni Next.js frontend projekat.
+Next.js dashboard organizovan po feature-folder obrascu.
 
 ## Pokretanje
 
@@ -12,10 +12,10 @@ npm run dev
 ## Sta je vec podeseno
 
 - Redux Toolkit store
-- feature `race-state` Redux slice za UI i WebSocket state
-- RTK Query base API
-- feature struktura za `race-state`
-- osnovni WebSocket hook
+- RTK Query `baseApi`
+- feature-folder struktura za `app` i `race-state`
+- UI komponente izdvojene u `components/`
+- osnovni SignalR hook i dashboard normalizeri u okviru `race-state` feature-a
 - provider u root layout-u
 - MUI tema i `styled-components` theme
 - globalni breakpoint helper-i i `useDevice` hook
@@ -26,15 +26,25 @@ Struktura:
 ```text
 components/
   layout/
+  race-state/
   providers/
 features/
+  app/
+    appUiSlice.ts
+    appSelectors.ts
   race-state/
-    api/
-    components/
-    hooks/
-    store/
-hooks/
+    raceStateApi.ts
+    raceStateUiSlice.ts
+    raceStateSelectors.ts
+    raceStateTypes.ts
+    raceStateDashboard.ts
+    useRaceDashboardLive.ts
+    useSignalR.ts
+    liveDashboardState.ts
 store/
+  baseApi.ts
+  index.ts
+hooks/
 theme/
 ```
 

@@ -1,15 +1,15 @@
 "use client";
 
+import { selectColorMode } from "@/features/store/app/appSelectors";
+import { createAppUiTheme } from "@/theme/create-ui-theme";
+import { createMuiTheme } from "@/theme/mui-theme";
 import { CssBaseline, GlobalStyles, ThemeProvider } from "@mui/material";
 import { useMemo } from "react";
+import { useSelector } from "react-redux";
 import { ThemeProvider as StyledThemeProvider } from "styled-components";
-import { selectColorMode } from "@/features/app/store/selectors";
-import { useAppSelector } from "@/store/hooks";
-import { createMuiTheme } from "@/theme/mui-theme";
-import { createAppUiTheme } from "@/theme/create-ui-theme";
 
 export function AppThemeProvider({ children }: { children: React.ReactNode }) {
-  const colorMode = useAppSelector(selectColorMode);
+  const colorMode = useSelector(selectColorMode);
   const styledTheme = useMemo(() => createAppUiTheme(colorMode), [colorMode]);
   const muiTheme = useMemo(() => createMuiTheme(colorMode), [colorMode]);
 

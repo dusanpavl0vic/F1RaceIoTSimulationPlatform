@@ -1,7 +1,7 @@
-import { createTheme } from "@mui/material/styles";
-import type { ColorMode } from "@/features/app/store/app-ui-slice";
+import type { ColorMode } from "@/features/store/app/appUiSlice";
 import { appColors } from "@/theme/colors";
 import { breakpointValues } from "@/theme/ui-theme";
+import { createTheme } from "@mui/material/styles";
 
 export function createMuiTheme(colorMode: ColorMode) {
   const isDark = colorMode === "dark";

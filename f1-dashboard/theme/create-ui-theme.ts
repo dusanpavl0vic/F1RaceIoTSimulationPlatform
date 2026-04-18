@@ -1,4 +1,4 @@
-import type { ColorMode } from "@/features/app/store/app-ui-slice";
+import type { ColorMode } from "@/features/store/app/appUiSlice";
 import { appColors } from "@/theme/colors";
 import { appBreakpoints, appDevices, type AppUiTheme } from "@/theme/ui-theme";
 

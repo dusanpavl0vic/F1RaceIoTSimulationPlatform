@@ -1,56 +1,55 @@
 "use client";
 
-import styled from "styled-components";
-import { t } from "@/theme/styled-helpers";
 import { appColors } from "@/theme/colors";
+import { Box, Button, Typography } from "@mui/material";
+import styled from "styled-components";
 
-export const StyledFooter = styled.footer`
+export const StyledFooter = styled(Box)`
   margin-top: auto;
-  background-color: ${({ theme }) => t(theme).colors.background};
-  border-top: 1px solid ${({ theme }) => t(theme).colors.border};
-  box-shadow: inset 0 3px 0 0 ${appColors.formulaRed};
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+    background-color: ${({ theme }) => (theme.isDark ? appColors.navyDeep : appColors.panel)};
+
 `;
 
-export const StyledFooterInner = styled.div`
-  width: ${({ theme }) => t(theme).layout.contentWidth};
+export const StyledFooterInner = styled(Box)`
   margin: 0 auto;
-  padding: 16px 0;
+  padding: 20px 30px;
+
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
 
-  ${({ theme }) => t(theme).breakpoints.down("sm")} {
-    width: ${({ theme }) => t(theme).layout.mobileContentWidth};
+  ${({ theme }) => theme.breakpoints.down("sm")} {
     flex-direction: column;
     align-items: flex-start;
   }
 `;
 
-export const StyledFooterIdentity = styled.div`
+export const StyledFooterIdentity = styled(Box)`
   display: flex;
   flex-direction: column;
   gap: 3px;
 `;
 
-export const StyledFooterName = styled.span`
+export const StyledFooterName = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
   font-weight: 700;
   font-size: 0.68rem;
   letter-spacing: 0.10em;
-  color: ${({ theme }) => t(theme).colors.textPrimary};
+  color: ${({ theme }) => theme.colors.textPrimary};
   line-height: 1.4;
 `;
 
-export const StyledFooterUniversity = styled.span`
+export const StyledFooterUniversity = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
   font-size: 0.55rem;
   letter-spacing: 0.08em;
-  color: ${({ theme }) => t(theme).colors.textMuted};
+  color: ${({ theme }) => theme.colors.textMuted};
 `;
 
-export const StyledGithubLink = styled.a`
+export const StyledGithubLink = styled(Button)`
   display: inline-flex;
   align-items: center;
   gap: 6px;

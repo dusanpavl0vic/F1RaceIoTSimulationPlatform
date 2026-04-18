@@ -20,10 +20,9 @@ export function AppFooter() {
 
         <StyledGithubLink
           href="https://github.com/dusanpavl0vic"
-          target="_blank"
           rel="noreferrer"
         >
-          GITHUB →
+          GITHUB
         </StyledGithubLink>
       </StyledFooterInner>
     </StyledFooter>

@@ -1,5 +1,5 @@
-import { DashboardPage } from "@/features/race-state/components/dashboard-page";
+import { RaceDashboardScreen } from "@/components/race-state/dashboard/RaceDashboard/race-dashboard-screen";
 
 export default function HomePage() {
-  return <DashboardPage />;
+  return <RaceDashboardScreen />;
 }
