@@ -1,3 +1,4 @@
+using F1.RaceState.Service.API.Hubs;
 using F1.RaceState.Service.Application.Contracts;
 using F1.RaceState.Service.Application.Services;
 using F1.RaceState.Service.Infrastructure.Configuration;
@@ -22,6 +23,7 @@ var allowedOrigins = builder.Configuration
 
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
+builder.Services.AddSignalR();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DashboardCors", policy =>
@@ -29,7 +31,8 @@ builder.Services.AddCors(options =>
         policy
             .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
 });
 
@@ -52,7 +55,7 @@ builder.Services.AddSingleton<IRaceStateStore, RaceStateStore>();
 builder.Services.AddSingleton<RaceStateViewFactory>();
 builder.Services.AddSingleton<RaceStateBroadcaster>();
 builder.Services.AddSingleton<TelemetryAnalyticsGateway>();
-builder.Services.AddSingleton<TelemetryAnalyticsWebSocketProxy>();
+builder.Services.AddSingleton<TelemetryAnalyticsSignalRBridge>();
 builder.Services.AddSingleton<StatePersistenceService>();
 builder.Services.AddSingleton<RaceStateWorker>();
 builder.Services.AddHostedService<RaceStateRecoveryHostedService>();
@@ -92,57 +95,8 @@ app.UseExceptionHandler(exceptionHandler =>
 });
 
 app.UseCors("DashboardCors");
-app.UseWebSockets();
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
-app.Map("/ws/race-state/telemetry", async context =>
-{
-    if (!context.WebSockets.IsWebSocketRequest)
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        return;
-    }
-
-    if (!int.TryParse(context.Request.Query["driverNumber"], out var driverNumber) || driverNumber <= 0)
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        await context.Response.WriteAsync("driverNumber query parameter is required.");
-        return;
-    }
-
-    var recentSampleCount = int.TryParse(context.Request.Query["recentSampleCount"], out var parsedRecentSampleCount)
-        ? Math.Max(0, parsedRecentSampleCount)
-        : 100;
-
-    var raceStateStore = context.RequestServices.GetRequiredService<IRaceStateStore>();
-    var sessionId = context.Request.Query["sessionId"].ToString();
-    if (string.IsNullOrWhiteSpace(sessionId))
-    {
-        sessionId = raceStateStore.GetSnapshot().SessionId;
-    }
-
-    if (string.IsNullOrWhiteSpace(sessionId))
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        await context.Response.WriteAsync("sessionId query parameter is required.");
-        return;
-    }
-
-    var proxy = context.RequestServices.GetRequiredService<TelemetryAnalyticsWebSocketProxy>();
-    var socket = await context.WebSockets.AcceptWebSocketAsync();
-    await proxy.ProxyAsync(socket, sessionId, driverNumber, recentSampleCount, context.RequestAborted);
-});
-app.Map("/ws/race-state", async context =>
-{
-    if (!context.WebSockets.IsWebSocketRequest)
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        return;
-    }
-
-    var broadcaster = context.RequestServices.GetRequiredService<RaceStateBroadcaster>();
-    var socket = await context.WebSockets.AcceptWebSocketAsync();
-    await broadcaster.AddClientAsync(socket, context.RequestAborted);
-});
+app.MapHub<RaceStateHub>("/hubs/race-state").RequireCors("DashboardCors");
 
 app.Run();

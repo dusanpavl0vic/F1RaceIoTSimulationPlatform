@@ -185,7 +185,7 @@ public sealed class TelemetryAnalyticsGrpcService(
         return response;
     }
 
-    public override async Task<DriverTelemetryResponse> GetLatestDriverTelemetry(DriverTelemetryRequest request, global::Grpc.Core.ServerCallContext context)
+    public override Task<DriverTelemetryResponse> GetLatestDriverTelemetry(DriverTelemetryRequest request, global::Grpc.Core.ServerCallContext context)
     {
         var response = new DriverTelemetryResponse
         {
@@ -196,7 +196,7 @@ public sealed class TelemetryAnalyticsGrpcService(
             .GetRecent(request.SessionId, request.DriverNumber, request.MaxSamples <= 0 ? 200 : request.MaxSamples)
             .Select(MapLiveTelemetrySample));
 
-        return response;
+        return Task.FromResult(response);
     }
 
     public override async Task StreamDriverTelemetry(

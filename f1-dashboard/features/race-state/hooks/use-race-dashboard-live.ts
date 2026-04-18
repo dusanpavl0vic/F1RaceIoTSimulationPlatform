@@ -5,7 +5,7 @@ import {
   useGetCurrentQuery,
   useGetDashboardQuery,
 } from "@/features/race-state/api/race-state-api";
-import { useWebSocket } from "@/features/race-state/hooks/use-websocket";
+import { useSignalR } from "@/features/race-state/hooks/use-signalr";
 import {
   buildRaceDashboardRows,
   buildSessionCards,
@@ -22,8 +22,10 @@ import type {
 } from "@/features/race-state/types/race-state";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 
-const defaultWsUrl =
-  process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8082/ws/race-state";
+const defaultSignalRUrl =
+  process.env.NEXT_PUBLIC_SIGNALR_URL ??
+  resolveLegacySignalRUrl(process.env.NEXT_PUBLIC_WS_URL) ??
+  "http://localhost:8082/hubs/race-state";
 
 export function useRaceDashboardLive() {
   const dispatch = useAppDispatch();
@@ -48,25 +50,29 @@ export function useRaceDashboardLive() {
     }
   }, [currentStateQuery.data, hasLiveWsState]);
 
-  useWebSocket(defaultWsUrl, {
+  useSignalR(defaultSignalRUrl, {
     onStatusChange: (status) => {
       dispatch(setWsStatus(status));
     },
-    onMessage: (event) => {
-      dispatch(setLastWsPayloadPreview(event.data.slice(0, 280)));
+    handlers: {
+      "race.state.updated": (payload) => {
+        try {
+          const message = payload as RaceStateWsMessage;
+          dispatch(
+            setLastWsPayloadPreview(JSON.stringify(message).slice(0, 280))
+          );
 
-      try {
-        const message = JSON.parse(event.data) as RaceStateWsMessage;
-        if (message.type === "race.state.updated") {
-          startTransition(() => {
-            setHasLiveWsState(true);
-            setLiveDashboard(message.dashboard);
-            setLiveCurrentState(message.currentState);
-          });
+          if (message.type === "race.state.updated") {
+            startTransition(() => {
+              setHasLiveWsState(true);
+              setLiveDashboard(message.dashboard);
+              setLiveCurrentState(message.currentState);
+            });
+          }
+        } catch {
+          void dashboardQuery.refetch();
+          void currentStateQuery.refetch();
         }
-      } catch {
-        void dashboardQuery.refetch();
-        void currentStateQuery.refetch();
       }
     },
   });
@@ -106,4 +112,21 @@ export function useRaceDashboardLive() {
     sessionCards,
     leaderboardRows,
   };
+}
+
+function resolveLegacySignalRUrl(url: string | undefined) {
+  if (!url) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(url);
+    parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:";
+    parsed.pathname = "/hubs/race-state";
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return null;
+  }
 }
