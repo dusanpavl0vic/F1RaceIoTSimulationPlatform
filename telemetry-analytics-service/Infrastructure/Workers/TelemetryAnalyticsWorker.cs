@@ -23,7 +23,16 @@ public sealed class TelemetryAnalyticsWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await _analyticsRepository.InitializeAsync(stoppingToken);
+        try
+        {
+            await _analyticsRepository.InitializeAsync(stoppingToken);
+        }
+        catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(
+                exception,
+                "Telemetry analytics PostgreSQL initialization failed. Continuing without PostgreSQL-backed summaries until the database becomes available.");
+        }
 
         if (!_mqttOptions.Enabled)
         {

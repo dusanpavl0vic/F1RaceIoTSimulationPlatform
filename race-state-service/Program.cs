@@ -1,3 +1,4 @@
+using F1.RaceState.Service.Application.Queries;
 using F1.RaceState.Service.API.Hubs;
 using F1.RaceState.Service.Application.Contracts;
 using F1.RaceState.Service.Application.Services;
@@ -53,11 +54,10 @@ builder.Services
 
 builder.Services.AddSingleton<IRaceStateStore, RaceStateStore>();
 builder.Services.AddSingleton<RaceStateReadService>();
-builder.Services.AddSingleton<RaceStateAnalyticsService>();
+builder.Services.AddSingleton<RaceStateAnalyticsQueryHandler>();
 builder.Services.AddSingleton<RaceStateViewFactory>();
 builder.Services.AddSingleton<RaceStateBroadcaster>();
 builder.Services.AddSingleton<TelemetryAnalyticsGateway>();
-builder.Services.AddSingleton<TelemetryAnalyticsSignalRBridge>();
 builder.Services.AddSingleton<StatePersistenceService>();
 builder.Services.AddSingleton<RaceStateWorker>();
 builder.Services.AddHostedService<RaceStateRecoveryHostedService>();

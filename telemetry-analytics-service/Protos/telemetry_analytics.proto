@@ -5,128 +5,9 @@ option csharp_namespace = "F1.TelemetryAnalytics.Service.Grpc";
 package telemetryanalytics;
 
 service TelemetryAnalytics {
-  rpc ListSessions (ListSessionsRequest) returns (ListSessionsResponse);
-  rpc GetSessionOverview (SessionOverviewRequest) returns (SessionOverviewResponse);
-  rpc GetSessionDrivers (SessionDriversRequest) returns (SessionDriversResponse);
-  rpc GetDriverStints (DriverStintsRequest) returns (DriverStintsResponse);
-  rpc GetDriverLapSummaries (DriverLapSummariesRequest) returns (DriverLapSummariesResponse);
   rpc GetDriverSegmentBuckets (DriverSegmentBucketsRequest) returns (DriverSegmentBucketsResponse);
-  rpc CompareDriversOnLap (CompareDriversOnLapRequest) returns (CompareDriversOnLapResponse);
+  rpc GetDriverLapTelemetry (DriverLapTelemetryRequest) returns (DriverLapTelemetryResponse);
   rpc GetLatestDriverTelemetry (DriverTelemetryRequest) returns (DriverTelemetryResponse);
-  rpc StreamDriverTelemetry (DriverTelemetryStreamRequest) returns (stream LiveTelemetrySample);
-}
-
-message ListSessionsRequest {}
-
-message SessionOverviewRequest {
-  string session_id = 1;
-}
-
-message SessionDriversRequest {
-  string session_id = 1;
-}
-
-message DriverStintsRequest {
-  string session_id = 1;
-  int32 driver_number = 2;
-}
-
-message SessionOverview {
-  string session_id = 1;
-  string meeting_name = 2;
-  string session_name = 3;
-  string session_status = 4;
-  string track_status_code = 5;
-  string track_status_label = 6;
-  int32 current_lap = 7;
-  int32 total_laps = 8;
-  int32 driver_count = 9;
-  int32 completed_lap_count = 10;
-  string updated_at = 11;
-}
-
-message ListSessionsResponse {
-  repeated SessionOverview sessions = 1;
-}
-
-message SessionOverviewResponse {
-  SessionOverview session = 1;
-}
-
-message DriverSessionOverview {
-  int32 driver_number = 1;
-  string driver_name = 2;
-  string team_name = 3;
-  string team_color = 4;
-  int32 grid_position = 5;
-  int32 position = 6;
-  int32 completed_laps = 7;
-  string best_lap_time = 8;
-  int32 best_lap_time_ms = 9;
-  string last_lap_time = 10;
-  int32 last_lap_time_ms = 11;
-  string current_compound = 12;
-  int32 tyre_laps = 13;
-  int32 current_stint_number = 14;
-  string gap_to_leader = 15;
-  string interval_to_ahead = 16;
-}
-
-message SessionDriversResponse {
-  string session_id = 1;
-  repeated DriverSessionOverview drivers = 2;
-}
-
-message DriverStint {
-  int32 stint_number = 1;
-  string compound = 2;
-  bool tyre_is_new = 3;
-  int32 start_lap = 4;
-  int32 end_lap = 5;
-  int32 lap_count = 6;
-  string updated_at = 7;
-}
-
-message DriverStintsResponse {
-  string session_id = 1;
-  int32 driver_number = 2;
-  string driver_name = 3;
-  repeated DriverStint stints = 4;
-}
-
-message DriverLapSummariesRequest {
-  string session_id = 1;
-  int32 driver_number = 2;
-}
-
-message DriverLapSummary {
-  int32 lap_number = 1;
-  int32 position = 2;
-  string lap_time = 3;
-  int32 lap_time_ms = 4;
-  string best_lap_time = 5;
-  int32 best_lap_time_ms = 6;
-  string sector1 = 7;
-  int32 sector1_ms = 8;
-  string sector2 = 9;
-  int32 sector2_ms = 10;
-  string sector3 = 11;
-  int32 sector3_ms = 12;
-  string compound = 13;
-  int32 tyre_laps = 14;
-  int32 stint_number = 15;
-  double avg_speed = 16;
-  int32 max_speed = 17;
-  double throttle_pct = 18;
-  double brake_pct = 19;
-  double drs_pct = 20;
-}
-
-message DriverLapSummariesResponse {
-  string session_id = 1;
-  int32 driver_number = 2;
-  string driver_name = 3;
-  repeated DriverLapSummary laps = 4;
 }
 
 message DriverSegmentBucketsRequest {
@@ -155,70 +36,34 @@ message DriverSegmentBucketsResponse {
   repeated SegmentBucket buckets = 4;
 }
 
-message CompareDriversOnLapRequest {
-  string session_id = 1;
-  int32 left_driver_number = 2;
-  int32 right_driver_number = 3;
-  int32 lap_number = 4;
-  int32 bucket_count = 5;
-}
-
-message TelemetryPoint {
-  double progress_pct = 1;
-  string timestamp = 2;
-  int32 speed = 3;
-  int32 throttle_pct = 4;
-  double brake_pct = 5;
-  int32 gear = 6;
-  bool drs_enabled = 7;
-  int32 rpm = 8;
-  int32 sample_index = 9;
-  int32 raw_throttle = 10;
-  int32 raw_brake = 11;
-}
-
-message DriverLapSeries {
-  int32 driver_number = 1;
-  string driver_name = 2;
-  int32 lap_number = 3;
-  repeated TelemetryPoint telemetry = 4;
-}
-
-message SegmentComparisonBucket {
-  int32 bucket_index = 1;
-  double start_progress_pct = 2;
-  double end_progress_pct = 3;
-  string left_behavior = 4;
-  string right_behavior = 5;
-  double avg_speed_delta = 6;
-  double throttle_delta = 7;
-  double brake_delta = 8;
-}
-
-message CompareDriversOnLapResponse {
-  string session_id = 1;
-  int32 lap_number = 2;
-  DriverLapSeries left = 3;
-  DriverLapSeries right = 4;
-  repeated SegmentComparisonBucket bucket_compare = 5;
-}
-
 message DriverTelemetryRequest {
   string session_id = 1;
   int32 driver_number = 2;
   int32 max_samples = 3;
+  string since_timestamp = 4;
+  repeated string requested_metrics = 5;
+}
+
+message DriverLapTelemetryRequest {
+  string session_id = 1;
+  int32 driver_number = 2;
+  int32 lap_number = 3;
+  repeated string requested_metrics = 4;
+}
+
+message DriverLapTelemetryResponse {
+  string session_id = 1;
+  int32 driver_number = 2;
+  int32 lap_number = 3;
+  repeated string returned_metrics = 4;
+  repeated LiveTelemetrySample samples = 5;
 }
 
 message DriverTelemetryResponse {
   string session_id = 1;
   int32 driver_number = 2;
-  repeated LiveTelemetrySample samples = 3;
-}
-
-message DriverTelemetryStreamRequest {
-  string session_id = 1;
-  int32 driver_number = 2;
-  int32 recent_sample_count = 3;
+  repeated string returned_metrics = 3;
+  repeated LiveTelemetrySample samples = 4;
 }
 
 message LiveTelemetrySample {

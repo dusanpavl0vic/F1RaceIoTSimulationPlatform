@@ -89,8 +89,121 @@ public sealed class InfluxTelemetryClient(
         return InfluxTelemetryCsvParser.Parse(payload);
     }
 
+    public async Task<IReadOnlyList<TelemetrySampleDto>> QueryDriverTelemetryAsync(
+        string sessionId,
+        int driverNumber,
+        int maxSamples,
+        DateTimeOffset? sinceTimestamp,
+        IReadOnlyCollection<string> requestedMetrics,
+        CancellationToken cancellationToken)
+    {
+        if (!_options.Enabled)
+        {
+            return [];
+        }
+
+        var selectedFields = TelemetryMetricCatalog.ResolveInfluxFields(requestedMetrics);
+        var flux = BuildTelemetrySamplesFlux(
+            sessionId,
+            $"|> filter(fn: (r) => r.driver_number == \"{driverNumber}\")",
+            maxSamples,
+            sinceTimestamp,
+            selectedFields);
+
+        var payload = await QueryTelemetryCsvAsync(flux, cancellationToken);
+        return InfluxTelemetryCsvParser.ParseTelemetrySamples(payload);
+    }
+
+    public async Task<IReadOnlyList<TelemetrySampleDto>> QueryDriverLapTelemetryAsync(
+        string sessionId,
+        int driverNumber,
+        int lapNumber,
+        IReadOnlyCollection<string> requestedMetrics,
+        CancellationToken cancellationToken)
+    {
+        if (!_options.Enabled)
+        {
+            return [];
+        }
+
+        var selectedFields = TelemetryMetricCatalog.ResolveInfluxFields(requestedMetrics);
+        var flux = BuildTelemetrySamplesFlux(
+            sessionId,
+            $"|> filter(fn: (r) => r.driver_number == \"{driverNumber}\")\n  |> filter(fn: (r) => r.lap_number == \"{lapNumber}\")",
+            maxSamples: 0,
+            sinceTimestamp: null,
+            selectedFields);
+
+        var payload = await QueryTelemetryCsvAsync(flux, cancellationToken);
+        return InfluxTelemetryCsvParser.ParseTelemetrySamples(payload);
+    }
+
     private static string EscapeFluxString(string value)
         => value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
+
+    private string BuildTelemetrySamplesFlux(
+        string sessionId,
+        string driverFilter,
+        int maxSamples,
+        DateTimeOffset? sinceTimestamp,
+        IReadOnlyCollection<string> selectedFields)
+    {
+        var rangeStart = sinceTimestamp?.ToUniversalTime().ToString("O") ?? "1970-01-01T00:00:00Z";
+        var keepColumns = new[]
+        {
+            "session_id",
+            "driver_number",
+            "lap_number",
+            "stint_number",
+            "_time",
+            "sample_index"
+        }
+        .Concat(selectedFields)
+        .Distinct(StringComparer.Ordinal)
+        .Select(field => $"\"{field}\"");
+        var limitClause = maxSamples > 0
+            ? $$"""
+              |> sort(columns: ["sample_index", "_time"], desc: true)
+              |> limit(n: {{maxSamples}})
+              |> sort(columns: ["driver_number", "sample_index", "_time"])
+              """
+            : """
+              |> sort(columns: ["driver_number", "sample_index", "_time"])
+              """;
+
+        return $$"""
+            from(bucket: "{{_options.Bucket}}")
+              |> range(start: {{rangeStart}})
+              |> filter(fn: (r) => r._measurement == "telemetry_samples")
+              |> filter(fn: (r) => r.session_id == "{{EscapeFluxString(sessionId)}}")
+              {{driverFilter}}
+              |> pivot(rowKey: ["_time", "session_id", "driver_number", "lap_number", "stint_number"], columnKey: ["_field"], valueColumn: "_value")
+              |> keep(columns: [{{string.Join(", ", keepColumns)}}])
+              {{limitClause}}
+            """;
+    }
+
+    private async Task<string> QueryTelemetryCsvAsync(string flux, CancellationToken cancellationToken)
+    {
+        using var response = await SendWithOptionalAuthRetryAsync(
+            includeAuthorization =>
+            {
+                var request = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    $"{_options.BaseUrl.TrimEnd('/')}/api/v2/query?org={Uri.EscapeDataString(_options.Organization)}")
+                {
+                    Content = new StringContent($"{{\"query\":{System.Text.Json.JsonSerializer.Serialize(flux)}}}", Encoding.UTF8, "application/json")
+                };
+
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/csv"));
+                ApplyAuthorization(request, includeAuthorization);
+                return request;
+            },
+            cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync(cancellationToken);
+    }
 
     private async Task<HttpResponseMessage> SendWithOptionalAuthRetryAsync(
         Func<bool, HttpRequestMessage> requestFactory,

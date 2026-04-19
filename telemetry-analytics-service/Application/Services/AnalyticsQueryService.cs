@@ -6,36 +6,11 @@ using F1.TelemetryAnalytics.Service.Infrastructure.Configuration;
 namespace F1.TelemetryAnalytics.Service.Application.Services;
 
 public sealed class AnalyticsQueryService(
-    IAnalyticsRepository analyticsRepository,
     IInfluxTelemetryClient influxTelemetryClient,
-    TelemetryStreamHub telemetryStreamHub,
     IOptions<AnalyticsOptions> analyticsOptions) : IAnalyticsQueryService
 {
-    private readonly IAnalyticsRepository _analyticsRepository = analyticsRepository;
     private readonly IInfluxTelemetryClient _influxTelemetryClient = influxTelemetryClient;
-    private readonly TelemetryStreamHub _telemetryStreamHub = telemetryStreamHub;
     private readonly AnalyticsOptions _analyticsOptions = analyticsOptions.Value;
-
-    public Task<IReadOnlyList<SessionOverviewDto>> ListSessionsAsync(CancellationToken cancellationToken)
-        => _analyticsRepository.ListSessionsAsync(cancellationToken);
-
-    public Task<SessionOverviewDto?> GetSessionOverviewAsync(string sessionId, CancellationToken cancellationToken)
-        => _analyticsRepository.GetSessionOverviewAsync(sessionId, cancellationToken);
-
-    public Task<IReadOnlyList<DriverSessionOverviewDto>> GetSessionDriversAsync(string sessionId, CancellationToken cancellationToken)
-        => _analyticsRepository.GetSessionDriversAsync(sessionId, cancellationToken);
-
-    public Task<(string DriverName, IReadOnlyList<DriverStintDto> Stints)> GetDriverStintsAsync(
-        string sessionId,
-        int driverNumber,
-        CancellationToken cancellationToken)
-        => _analyticsRepository.GetDriverStintsAsync(sessionId, driverNumber, cancellationToken);
-
-    public Task<(string DriverName, IReadOnlyList<DriverLapSummaryDto> Laps)> GetDriverLapSummariesAsync(
-        string sessionId,
-        int driverNumber,
-        CancellationToken cancellationToken)
-        => _analyticsRepository.GetDriverLapSummariesAsync(sessionId, driverNumber, cancellationToken);
 
     public async Task<IReadOnlyList<SegmentBucketDto>> GetDriverSegmentBucketsAsync(
         string sessionId,
@@ -48,68 +23,57 @@ public sealed class AnalyticsQueryService(
         return BuildSegmentBuckets(telemetry, bucketCount <= 0 ? _analyticsOptions.SegmentBucketCount : bucketCount);
     }
 
-    public async Task<CompareDriversOnLapDto> CompareDriversOnLapAsync(
+    public async Task<DriverTelemetryQueryResultDto> GetDriverLapTelemetryAsync(
         string sessionId,
-        int leftDriverNumber,
-        int rightDriverNumber,
+        int driverNumber,
         int lapNumber,
-        int bucketCount,
+        IReadOnlyCollection<string>? requestedMetrics,
         CancellationToken cancellationToken)
     {
-        var effectiveBucketCount = bucketCount <= 0 ? _analyticsOptions.LapCompareBucketCount : bucketCount;
-
-        var (leftDriverName, _) = await _analyticsRepository.GetDriverLapSummariesAsync(sessionId, leftDriverNumber, cancellationToken);
-        var (rightDriverName, _) = await _analyticsRepository.GetDriverLapSummariesAsync(sessionId, rightDriverNumber, cancellationToken);
-        var leftTelemetry = await _influxTelemetryClient.QueryLapTelemetryAsync(sessionId, leftDriverNumber, lapNumber, cancellationToken);
-        var rightTelemetry = await _influxTelemetryClient.QueryLapTelemetryAsync(sessionId, rightDriverNumber, lapNumber, cancellationToken);
-
-        var leftBuckets = BuildSegmentBuckets(leftTelemetry, effectiveBucketCount);
-        var rightBuckets = BuildSegmentBuckets(rightTelemetry, effectiveBucketCount);
-        var pairedBuckets = Enumerable.Range(0, Math.Min(leftBuckets.Count, rightBuckets.Count))
-            .Select(index => new SegmentComparisonBucketDto(
-                index + 1,
-                leftBuckets[index].StartProgressPct,
-                leftBuckets[index].EndProgressPct,
-                leftBuckets[index].Behavior,
-                rightBuckets[index].Behavior,
-                leftBuckets[index].AverageSpeed - rightBuckets[index].AverageSpeed,
-                leftBuckets[index].AverageThrottlePct - rightBuckets[index].AverageThrottlePct,
-                leftBuckets[index].BrakeUsagePct - rightBuckets[index].BrakeUsagePct))
-            .ToArray();
-
-        return new CompareDriversOnLapDto(
+        var metrics = TelemetryMetricCatalog.NormalizeRequestedMetrics(requestedMetrics);
+        var samples = await _influxTelemetryClient.QueryDriverLapTelemetryAsync(
             sessionId,
+            driverNumber,
             lapNumber,
-            new DriverLapSeriesDto(leftDriverNumber, leftDriverName, lapNumber, leftTelemetry),
-            new DriverLapSeriesDto(rightDriverNumber, rightDriverName, lapNumber, rightTelemetry),
-            pairedBuckets);
+            metrics,
+            cancellationToken);
+
+        return new DriverTelemetryQueryResultDto(metrics, samples);
     }
 
-    public Task<IReadOnlyList<TelemetryPointDto>> GetLatestDriverTelemetryAsync(
+    public Task<DriverTelemetryQueryResultDto> GetLatestDriverTelemetryAsync(
         string sessionId,
         int driverNumber,
         int maxSamples,
+        DateTimeOffset? sinceTimestamp,
+        IReadOnlyCollection<string>? requestedMetrics,
+        CancellationToken cancellationToken)
+        => GetLatestDriverTelemetryCoreAsync(
+            sessionId,
+            driverNumber,
+            maxSamples,
+            sinceTimestamp,
+            requestedMetrics,
+            cancellationToken);
+
+    private async Task<DriverTelemetryQueryResultDto> GetLatestDriverTelemetryCoreAsync(
+        string sessionId,
+        int driverNumber,
+        int maxSamples,
+        DateTimeOffset? sinceTimestamp,
+        IReadOnlyCollection<string>? requestedMetrics,
         CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        var metrics = TelemetryMetricCatalog.NormalizeRequestedMetrics(requestedMetrics);
+        var samples = await _influxTelemetryClient.QueryDriverTelemetryAsync(
+            sessionId,
+            driverNumber,
+            maxSamples,
+            sinceTimestamp,
+            metrics,
+            cancellationToken);
 
-        var samples = _telemetryStreamHub
-            .GetRecent(sessionId, driverNumber, maxSamples <= 0 ? 200 : maxSamples)
-            .Select(sample => new TelemetryPointDto(
-                0d,
-                sample.Timestamp.ToString("O"),
-                sample.Speed ?? 0,
-                sample.ThrottlePct ?? 0,
-                sample.RawBrake ?? (sample.BrakeApplied is true ? 100d : 0d),
-                sample.Gear ?? 0,
-                sample.DrsEnabled ?? false,
-                sample.Rpm ?? 0,
-                sample.SampleIndex,
-                sample.RawThrottle ?? 0,
-                sample.RawBrake ?? 0))
-            .ToArray();
-
-        return Task.FromResult<IReadOnlyList<TelemetryPointDto>>(samples);
+        return new DriverTelemetryQueryResultDto(metrics, samples);
     }
 
     private static IReadOnlyList<SegmentBucketDto> BuildSegmentBuckets(IReadOnlyList<TelemetryPointDto> telemetry, int bucketCount)

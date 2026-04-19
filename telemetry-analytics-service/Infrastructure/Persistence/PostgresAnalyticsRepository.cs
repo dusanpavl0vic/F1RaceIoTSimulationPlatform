@@ -563,11 +563,17 @@ public sealed class PostgresAnalyticsRepository(
                 Username = "postgres",
                 Password = "postgres"
             }.ConnectionString);
+
+            candidates.Add(new NpgsqlConnectionStringBuilder(configuredConnectionString)
+            {
+                Username = "f1",
+                Password = "f1_password"
+            }.ConnectionString);
         }
 
-        candidates.Add("Host=postgres;Port=5432;Database=f1_telemetry;Username=postgres");
-        candidates.Add("Host=postgres;Port=5432;Database=f1_telemetry;Username=postgres;Password=postgres");
         candidates.Add("Host=postgres;Port=5432;Database=f1_telemetry;Username=f1;Password=f1_password");
+        candidates.Add("Host=postgres;Port=5432;Database=f1_telemetry;Username=postgres;Password=postgres");
+        candidates.Add("Host=postgres;Port=5432;Database=f1_telemetry;Username=postgres");
 
         return candidates
             .Where(candidate => !string.IsNullOrWhiteSpace(candidate))

@@ -64,10 +64,10 @@ services:
         condition: service_started
     ports:
       - "8083:8080"
+      - "8084:8081"
     environment:
       ASPNETCORE_ENVIRONMENT: Docker
       DOTNET_ENVIRONMENT: Docker
-      ASPNETCORE_URLS: http://+:8080
     restart: unless-stopped
 
   postgres:
@@ -75,12 +75,15 @@ services:
     container_name: f1-postgres
     environment:
       POSTGRES_DB: f1_telemetry
+      POSTGRES_USER: f1
+      POSTGRES_PASSWORD: f1_password
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
       - ./docker/postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U f1 -d f1_telemetry"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -90,8 +93,12 @@ services:
     image: influxdb:2.7
     container_name: f1-influxdb
     environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: meda016
+      DOCKER_INFLUXDB_INIT_PASSWORD: meda016telemetry
       DOCKER_INFLUXDB_INIT_ORG: f1-platform
       DOCKER_INFLUXDB_INIT_BUCKET: f1-telemetry
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: f1-super-token
     ports:
       - "8086:8086"
     volumes:

@@ -42,4 +42,10 @@ public sealed class RaceStateController(RaceStateReadService raceStateReadServic
     {
         return Ok(raceStateReadService.GetDashboard());
     }
+
+    [HttpGet("telemetry/metadata")]
+    public IActionResult GetTelemetryMetadata()
+    {
+        return Ok(raceStateReadService.GetTelemetryMetadata());
+    }
 }

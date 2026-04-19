@@ -1,68 +1,12 @@
-using F1.RaceState.Service.Application.Services;
+using F1.RaceState.Service.Application.Queries;
 using Microsoft.AspNetCore.Mvc;
 
 namespace F1.RaceState.Service.API.Controllers;
 
 [ApiController]
 [Route("api/race-state/analytics")]
-public sealed class RaceStateAnalyticsController(RaceStateAnalyticsService raceStateAnalyticsService) : ControllerBase
+public sealed class RaceStateAnalyticsController(RaceStateAnalyticsQueryHandler queryHandler) : ControllerBase
 {
-
-    [HttpGet("sessions")]
-    public async Task<IActionResult> GetSessions(CancellationToken cancellationToken)
-    {
-        return Ok(await raceStateAnalyticsService.ListSessionsAsync(cancellationToken));
-    }
-
-    [HttpGet("sessions/{sessionId}")]
-    public async Task<IActionResult> GetSessionOverview([FromRoute] string sessionId, CancellationToken cancellationToken)
-    {
-        var resolvedSessionId = raceStateAnalyticsService.ResolveSessionId(sessionId);
-        if (resolvedSessionId is null)
-        {
-            return BadRequest("sessionId is required.");
-        }
-
-        var result = await raceStateAnalyticsService.GetSessionOverviewAsync(resolvedSessionId, cancellationToken);
-        return result is null ? NotFound() : Ok(result);
-    }
-
-    [HttpGet("sessions/{sessionId}/drivers")]
-    public async Task<IActionResult> GetSessionDrivers([FromRoute] string sessionId, CancellationToken cancellationToken)
-    {
-        var resolvedSessionId = raceStateAnalyticsService.ResolveSessionId(sessionId);
-        if (resolvedSessionId is null)
-        {
-            return BadRequest("sessionId is required.");
-        }
-
-        return Ok(await raceStateAnalyticsService.GetSessionDriversAsync(resolvedSessionId, cancellationToken));
-    }
-
-    [HttpGet("drivers/{driverNumber:int}/stints")]
-    public async Task<IActionResult> GetDriverStints([FromRoute] int driverNumber, [FromQuery] string? sessionId, CancellationToken cancellationToken)
-    {
-        var resolvedSessionId = raceStateAnalyticsService.ResolveSessionId(sessionId);
-        if (resolvedSessionId is null)
-        {
-            return BadRequest("sessionId is required.");
-        }
-
-        return Ok(await raceStateAnalyticsService.GetDriverStintsAsync(resolvedSessionId, driverNumber, cancellationToken));
-    }
-
-    [HttpGet("drivers/{driverNumber:int}/laps")]
-    public async Task<IActionResult> GetDriverLapSummaries([FromRoute] int driverNumber, [FromQuery] string? sessionId, CancellationToken cancellationToken)
-    {
-        var resolvedSessionId = raceStateAnalyticsService.ResolveSessionId(sessionId);
-        if (resolvedSessionId is null)
-        {
-            return BadRequest("sessionId is required.");
-        }
-
-        return Ok(await raceStateAnalyticsService.GetDriverLapSummariesAsync(resolvedSessionId, driverNumber, cancellationToken));
-    }
-
     [HttpGet("drivers/{driverNumber:int}/segments")]
     public async Task<IActionResult> GetDriverSegmentBuckets(
         [FromRoute] int driverNumber,
@@ -71,17 +15,18 @@ public sealed class RaceStateAnalyticsController(RaceStateAnalyticsService raceS
         [FromQuery] int bucketCount = 10,
         CancellationToken cancellationToken = default)
     {
-        var resolvedSessionId = raceStateAnalyticsService.ResolveSessionId(sessionId);
+        var resolvedSessionId = queryHandler.Handle(new ResolveAnalyticsSessionIdQuery(sessionId));
         if (resolvedSessionId is null)
         {
             return BadRequest("sessionId is required.");
         }
 
-        return Ok(await raceStateAnalyticsService.GetDriverSegmentBucketsAsync(
-            resolvedSessionId,
-            driverNumber,
-            lapNumber,
-            bucketCount,
+        return Ok(await queryHandler.HandleAsync(
+            new GetDriverSegmentBucketsQuery(
+                resolvedSessionId,
+                driverNumber,
+                lapNumber,
+                bucketCount),
             cancellationToken));
     }
 
@@ -89,43 +34,52 @@ public sealed class RaceStateAnalyticsController(RaceStateAnalyticsService raceS
     public async Task<IActionResult> GetLatestDriverTelemetry(
         [FromRoute] int driverNumber,
         [FromQuery] string? sessionId,
-        [FromQuery] int maxSamples = 200,
+        [FromQuery] int maxSamples = 0,
+        [FromQuery] DateTimeOffset? sinceTimestamp = null,
+        [FromQuery] string[]? metrics = null,
         CancellationToken cancellationToken = default)
     {
-        var resolvedSessionId = raceStateAnalyticsService.ResolveSessionId(sessionId);
+        var resolvedSessionId = queryHandler.Handle(new ResolveAnalyticsSessionIdQuery(sessionId));
         if (resolvedSessionId is null)
         {
             return BadRequest("sessionId is required.");
         }
 
-        return Ok(await raceStateAnalyticsService.GetLatestDriverTelemetryAsync(
-            resolvedSessionId,
-            driverNumber,
-            maxSamples,
+        return Ok(await queryHandler.HandleAsync(
+            new GetLatestDriverTelemetryQuery(
+                resolvedSessionId,
+                driverNumber,
+                maxSamples,
+                sinceTimestamp,
+                ExpandMetrics(metrics)),
             cancellationToken));
     }
 
-    [HttpGet("compare")]
-    public async Task<IActionResult> CompareDriversOnLap(
+    [HttpGet("drivers/{driverNumber:int}/laps/{lapNumber:int}/telemetry")]
+    public async Task<IActionResult> GetDriverLapTelemetry(
+        [FromRoute] int driverNumber,
+        [FromRoute] int lapNumber,
         [FromQuery] string? sessionId,
-        [FromQuery] int leftDriverNumber,
-        [FromQuery] int rightDriverNumber,
-        [FromQuery] int lapNumber,
-        [FromQuery] int bucketCount = 20,
+        [FromQuery] string[]? metrics = null,
         CancellationToken cancellationToken = default)
     {
-        var resolvedSessionId = raceStateAnalyticsService.ResolveSessionId(sessionId);
+        var resolvedSessionId = queryHandler.Handle(new ResolveAnalyticsSessionIdQuery(sessionId));
         if (resolvedSessionId is null)
         {
             return BadRequest("sessionId is required.");
         }
 
-        return Ok(await raceStateAnalyticsService.CompareDriversOnLapAsync(
-            resolvedSessionId,
-            leftDriverNumber,
-            rightDriverNumber,
-            lapNumber,
-            bucketCount,
+        return Ok(await queryHandler.HandleAsync(
+            new GetDriverLapTelemetryQuery(
+                resolvedSessionId,
+                driverNumber,
+                lapNumber,
+                ExpandMetrics(metrics)),
             cancellationToken));
     }
+
+    private static string[] ExpandMetrics(string[]? metrics)
+        => (metrics ?? [])
+            .SelectMany(metric => metric.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .ToArray();
 }
