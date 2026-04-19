@@ -73,14 +73,36 @@ export const StyledToggleLabel = styled(Typography) <{ $active: boolean }>`
 `;
 
 export const StyledSwitch = styled(Switch)`
+  width: 42px;
+  height: 24px;
+  padding: 0;
+
+  & .MuiSwitch-switchBase {
+    padding: 3px;
+    transition-duration: 200ms;
+  }
+
+  & .MuiSwitch-thumb {
+    width: 18px;
+    height: 18px;
+    box-shadow: none;
+  }
+
+  & .MuiSwitch-switchBase.Mui-checked {
+    transform: translateX(18px);
+  }
+
   & .MuiSwitch-switchBase.Mui-checked {
     color: ${appColors.formulaRed};
   }
+
   & .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track {
     background-color: ${appColors.formulaRed};
-    opacity: 0.55;
+    opacity: 0.72;
   }
+
   & .MuiSwitch-track {
+    border-radius: 999px;
     background-color: ${({ theme }) =>
     theme.isDark ? `${appColors.navyRoyal} !important` : "rgba(5,14,60,0.20) !important"};
     opacity: 1 !important;

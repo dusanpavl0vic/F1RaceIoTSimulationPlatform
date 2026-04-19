@@ -48,6 +48,24 @@ export type RaceDashboard = {
   leaderboard: RaceLeaderboardEntry[];
 };
 
+export type RaceTelemetrySessionInfo = RaceStateSessionView;
+
+export type RaceTelemetryDriverSummary = {
+  driverNumber: number;
+  broadcastName: string | null;
+  fullName: string | null;
+  tla: string | null;
+  teamName: string | null;
+  teamColor: string | null;
+  position: number | null;
+  gridPosition: number | null;
+};
+
+export type RaceTelemetryMetadata = {
+  session: RaceTelemetrySessionInfo;
+  drivers: RaceTelemetryDriverSummary[];
+};
+
 export type RaceCurrentDriverState = {
   driverNumber: number;
   broadcastName: string | null;
@@ -108,6 +126,40 @@ export type RaceStateBroadcastMessage = {
 };
 
 export type RaceStateWsMessage = RaceStateBroadcastMessage;
+
+export type RaceStateTelemetrySample = {
+  sessionId: string;
+  driverNumber: number;
+  lapNumber: number;
+  stintNumber: number;
+  sampleIndex: number;
+  timestamp: string;
+  speed?: number;
+  rpm?: number;
+  throttlePct?: number;
+  rawThrottle?: number;
+  brakePct?: number;
+  rawBrake?: number;
+  gear?: number;
+  drsEnabled?: boolean;
+};
+
+export type RaceStateTelemetryReadyMessage = {
+  type: "telemetry.stream.ready";
+  sessionId: string;
+  driverNumber: number;
+  recentSampleCount: number;
+};
+
+export type RaceStateTelemetrySampleMessage = {
+  type: "telemetry.sample";
+  data: RaceStateTelemetrySample;
+};
+
+export type RaceStateTelemetryErrorMessage = {
+  type: "telemetry.stream.error";
+  message: string;
+};
 
 export type RaceStateUiView = {
   wsStatus: string;

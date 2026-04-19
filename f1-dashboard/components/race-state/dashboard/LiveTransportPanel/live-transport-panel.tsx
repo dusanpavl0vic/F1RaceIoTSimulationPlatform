@@ -1,11 +1,12 @@
 import type { RaceStateUiView } from "@/features/store/race-state/raceStateTypes";
-import { Chip } from "@mui/material";
 import {
   StyledLiveDot,
   StyledPanelHeader,
   StyledPanelTitle,
   StyledStatLabel,
   StyledStatRow,
+  StyledStatusBadge,
+  StyledStatusBadgeLabel,
   StyledStatsList,
   StyledStatTimeValue,
   StyledTransportPaper,
@@ -55,12 +56,19 @@ export function LiveTransportPanel({
       <StyledStatsList>
         <StyledStatRow>
           <StyledStatLabel>WEBSOCKET</StyledStatLabel>
-          <Chip
-            size="small"
-            label={wsUi.wsStatus.toUpperCase()}
-            color={resolveWsColor(wsUi.wsStatus)}
-            variant={isLive ? "filled" : "outlined"}
-          />
+          <StyledStatusBadge
+            $tone={
+              wsUi.wsStatus === "open"
+                ? "live"
+                : wsUi.wsStatus === "connecting"
+                  ? "warning"
+                  : wsUi.wsStatus === "error"
+                    ? "error"
+                    : "idle"
+            }
+          >
+            <StyledStatusBadgeLabel>{wsUi.wsStatus.toUpperCase()}</StyledStatusBadgeLabel>
+          </StyledStatusBadge>
         </StyledStatRow>
 
         <StyledStatRow>

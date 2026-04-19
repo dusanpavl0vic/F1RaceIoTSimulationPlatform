@@ -1,4 +1,5 @@
 import { appUiReducer } from "@/features/store/app/appUiSlice";
+import { raceStateTelemetryReducer } from "@/features/store/race-state/raceStateTelemetrySlice";
 import { raceStateUiReducer } from "@/features/store/race-state/raceStateUiSlice";
 import { configureStore } from "@reduxjs/toolkit";
 import { setupListeners } from "@reduxjs/toolkit/query";
@@ -7,6 +8,7 @@ import { baseApi } from "./baseApi";
 export const store = configureStore({
   reducer: {
     appUi: appUiReducer,
+    raceStateTelemetry: raceStateTelemetryReducer,
     raceStateUi: raceStateUiReducer,
     [baseApi.reducerPath]: baseApi.reducer,
   },

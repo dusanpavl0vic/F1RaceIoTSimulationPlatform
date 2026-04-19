@@ -1,6 +1,7 @@
 import type { RaceDashboardDriverRow } from "@/features/store/race-state/raceStateTypes";
-import { Chip } from "@mui/material";
 import {
+  StyledTyreBadge,
+  StyledTyreBadgeLabel,
   StyledTyreLapCount,
   StyledTyreWrapper,
 } from "./leaderboard-tyre-cell.styles";
@@ -34,16 +35,18 @@ const resolveTyreColor = (compound: string) => {
 
 export function LeaderboardTyreCell({ row }: LeaderboardTyreCellProps) {
   const compound = row.tyreCompound ?? "-";
+  const shortLabel =
+    compound === "-" ? "?" : compound.substring(0, 1).toUpperCase();
 
   return (
     <StyledTyreWrapper>
-      <Chip
-        size="small"
-        label={compound === "-" ? "?" : compound.substring(0, 1).toUpperCase()}
-        color={resolveTyreColor(compound)}
-        variant={row.tyreIsNew ? "filled" : "outlined"}
+      <StyledTyreBadge
+        $compound={compound}
+        $filled={Boolean(row.tyreIsNew)}
         title={compound}
-      />
+      >
+        <StyledTyreBadgeLabel>{shortLabel}</StyledTyreBadgeLabel>
+      </StyledTyreBadge>
       {row.currentStintLapCount && (
         <StyledTyreLapCount>{row.currentStintLapCount}L</StyledTyreLapCount>
       )}

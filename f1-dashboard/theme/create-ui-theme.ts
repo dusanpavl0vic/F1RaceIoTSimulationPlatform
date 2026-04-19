@@ -19,10 +19,6 @@ export function createAppUiTheme(colorMode: ColorMode): AppUiTheme {
     },
     breakpoints: appBreakpoints,
     devices: appDevices,
-    layout: {
-      contentWidth: "min(1240px, calc(100vw - 32px))",
-      mobileContentWidth: "min(100vw - 20px, 100%)",
-    },
     radius: {
       panel: "4px",
       card: "4px",

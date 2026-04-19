@@ -1,4 +1,4 @@
-import { RootState } from "@/store";
+import type { RootState } from "@/features/store/store";
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 export type ColorMode = "light" | "dark";
@@ -29,4 +29,3 @@ export const appUiReducer = appUiSlice.reducer;
 
 
 export const selectColorMode = (state: RootState) => state.appUi.colorMode;
-

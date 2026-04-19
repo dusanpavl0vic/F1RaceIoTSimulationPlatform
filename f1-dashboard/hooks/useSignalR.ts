@@ -7,7 +7,7 @@ import {
   HubConnectionState,
   LogLevel,
 } from "@microsoft/signalr";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type SignalRHandler = (payload: unknown) => void;
 
@@ -23,6 +23,8 @@ export const useSignalR = (url: string | null, options?: SignalROptions) => {
   const onStatusChangeRef = useRef(options?.onStatusChange);
   const connectionRef = useRef<HubConnection | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectDelayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const effectRunIdRef = useRef(0);
   const [status, setStatus] = useState<RaceStateWebSocketStatus>("idle");
 
   const updateStatus = (nextStatus: RaceStateWebSocketStatus) => {
@@ -45,14 +47,28 @@ export const useSignalR = (url: string | null, options?: SignalROptions) => {
     }
 
     let disposed = false;
+    const effectRunId = ++effectRunIdRef.current;
+
+    const scheduleReconnect = () => {
+      if (disposed || effectRunId !== effectRunIdRef.current) {
+        return;
+      }
+
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+
+      reconnectTimeoutRef.current = setTimeout(() => {
+        void connect();
+      }, 1500);
+    };
 
     const connect = async () => {
-      if (disposed) {
+      if (disposed || effectRunId !== effectRunIdRef.current) {
         return;
       }
 
       updateStatus("connecting");
-
       const connection = new HubConnectionBuilder()
         .withUrl(url, {
           withCredentials: false,
@@ -63,18 +79,24 @@ export const useSignalR = (url: string | null, options?: SignalROptions) => {
 
       connectionRef.current = connection;
 
-      connection.onreconnecting(() => updateStatus("connecting"));
-      connection.onreconnected(() => updateStatus("open"));
-      connection.onclose(() => {
-        updateStatus("closed");
-
-        if (disposed) {
+      connection.onreconnecting(() => {
+        if (!disposed && effectRunId === effectRunIdRef.current) {
+          updateStatus("connecting");
+        }
+      });
+      connection.onreconnected(() => {
+        if (!disposed && effectRunId === effectRunIdRef.current) {
+          updateStatus("open");
+        }
+      });
+      connection.onclose((error) => {
+        if (disposed || effectRunId !== effectRunIdRef.current) {
           return;
         }
 
-        reconnectTimeoutRef.current = setTimeout(() => {
-          void connect();
-        }, 1500);
+        connectionRef.current = null;
+        updateStatus(error ? "error" : "closed");
+        scheduleReconnect();
       });
 
       for (const eventName of Object.keys(handlersRef.current)) {
@@ -85,25 +107,35 @@ export const useSignalR = (url: string | null, options?: SignalROptions) => {
 
       try {
         await connection.start();
-        if (disposed || connection.state !== HubConnectionState.Connected) {
+        if (disposed || effectRunId !== effectRunIdRef.current) {
+          await connection.stop();
+          return;
+        }
+
+        if (connection.state !== HubConnectionState.Connected) {
           return;
         }
 
         updateStatus("open");
       } catch {
+        connectionRef.current = null;
         updateStatus("error");
-        if (!disposed) {
-          reconnectTimeoutRef.current = setTimeout(() => {
-            void connect();
-          }, 1500);
-        }
+        scheduleReconnect();
       }
     };
 
-    void connect();
+    // Delay the first connect slightly so React StrictMode's dev-only
+    // mount/unmount cycle does not create and immediately tear down a socket.
+    connectDelayTimeoutRef.current = setTimeout(() => {
+      void connect();
+    }, 100);
 
     return () => {
       disposed = true;
+      if (connectDelayTimeoutRef.current) {
+        clearTimeout(connectDelayTimeoutRef.current);
+        connectDelayTimeoutRef.current = null;
+      }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
@@ -117,15 +149,17 @@ export const useSignalR = (url: string | null, options?: SignalROptions) => {
     };
   }, [enabled, url]);
 
+  const invoke = useCallback(async (methodName: string, ...args: unknown[]) => {
+    if (!connectionRef.current) {
+      return;
+    }
+
+    await connectionRef.current.invoke(methodName, ...args);
+  }, []);
+
   return {
     status,
     connection: connectionRef.current,
-    invoke: async (methodName: string, ...args: unknown[]) => {
-      if (!connectionRef.current) {
-        return;
-      }
-
-      await connectionRef.current.invoke(methodName, ...args);
-    },
+    invoke,
   };
 };

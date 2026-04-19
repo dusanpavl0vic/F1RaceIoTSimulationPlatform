@@ -1,4 +1,4 @@
-import type { RootState } from "@/store";
+import type { RootState } from "@/features/store/store";
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 export type RaceStateWebSocketStatus =

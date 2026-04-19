@@ -2,7 +2,6 @@ import type { RaceDashboardDriverRow } from "@/features/store/race-state/raceSta
 import {
   Table,
   TableBody,
-  TableCell,
   TableContainer,
   TableHead,
   TableRow,
@@ -10,6 +9,7 @@ import {
 import { useRef } from "react";
 import { LeaderboardDriverRow } from "./leaderboard-driver-row";
 import {
+  StyledHeadCell,
   StyledLastHeadCell,
   StyledPosHeadCell,
   StyledTableCount,
@@ -25,11 +25,11 @@ type LeaderboardTableProps = {
   isTablet: boolean;
 };
 
-export function LeaderboardTable({
+export const LeaderboardTable = ({
   rows,
   isMobile,
   isTablet,
-}: LeaderboardTableProps) {
+}: LeaderboardTableProps) => {
   const prevPositions = useRef<Map<number, number>>(new Map());
 
   const positionChanges = new Map<number, "gained" | "lost">();
@@ -65,12 +65,12 @@ export function LeaderboardTable({
             <TableRow>
               <StyledPosHeadCell>POS</StyledPosHeadCell>
               <StyledWideHeadCell>DRIVER</StyledWideHeadCell>
-              {!isMobile && <TableCell>TEAM</TableCell>}
-              <TableCell>GAP</TableCell>
-              {!isTablet && <TableCell>INT</TableCell>}
-              {!isMobile && <TableCell>TYRE</TableCell>}
-              <TableCell>LAST</TableCell>
-              {!isTablet && <TableCell>BEST</TableCell>}
+              {!isMobile && <StyledHeadCell>TEAM</StyledHeadCell>}
+              <StyledHeadCell>GAP</StyledHeadCell>
+              {!isTablet && <StyledHeadCell>INT</StyledHeadCell>}
+              {!isMobile && <StyledHeadCell>TYRE</StyledHeadCell>}
+              <StyledHeadCell>LAST</StyledHeadCell>
+              {!isTablet && <StyledHeadCell>BEST</StyledHeadCell>}
               <StyledLastHeadCell>STATUS</StyledLastHeadCell>
             </TableRow>
           </TableHead>
@@ -89,4 +89,4 @@ export function LeaderboardTable({
       </TableContainer>
     </StyledTableWrapper>
   );
-}
+};

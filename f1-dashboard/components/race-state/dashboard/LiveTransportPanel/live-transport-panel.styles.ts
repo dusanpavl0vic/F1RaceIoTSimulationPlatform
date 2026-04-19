@@ -59,6 +59,28 @@ export const StyledStatLabel = styled(Typography)`
   color: ${({ theme }) => theme.colors.textMuted};
 `;
 
+export const StyledStatusBadge = styled(Box)<{ $tone: "live" | "warning" | "error" | "idle" }>`
+  min-width: 86px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid ${({ $tone, theme }) => resolveStatusColors($tone, theme.isDark).border};
+  background-color: ${({ $tone, theme }) =>
+    resolveStatusColors($tone, theme.isDark).background};
+  color: ${({ $tone, theme }) => resolveStatusColors($tone, theme.isDark).color};
+`;
+
+export const StyledStatusBadgeLabel = styled(Typography)`
+  font-family: var(--font-silkscreen), "Silkscreen", monospace;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+`;
+
 export const StyledStatTimeValue = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
   font-size: 0.72rem;
@@ -66,3 +88,35 @@ export const StyledStatTimeValue = styled(Typography)`
   font-variant-numeric: tabular-nums;
   color: ${({ theme }) => theme.colors.textPrimary};
 `;
+
+const resolveStatusColors = (
+  tone: "live" | "warning" | "error" | "idle",
+  isDark: boolean
+) => {
+  switch (tone) {
+    case "live":
+      return {
+        border: "rgba(0, 200, 83, 0.45)",
+        background: isDark ? "#FFFFFF" : "rgba(0, 200, 83, 0.14)",
+        color: "#00A94B",
+      };
+    case "warning":
+      return {
+        border: "rgba(255, 214, 0, 0.45)",
+        background: isDark ? "#FFFFFF" : "rgba(255, 214, 0, 0.16)",
+        color: "#8F6B00",
+      };
+    case "error":
+      return {
+        border: "rgba(220, 0, 0, 0.40)",
+        background: isDark ? "#FFFFFF" : "rgba(220, 0, 0, 0.14)",
+        color: "#B30000",
+      };
+    default:
+      return {
+        border: "rgba(5, 14, 60, 0.18)",
+        background: isDark ? "#FFFFFF" : "rgba(5, 14, 60, 0.06)",
+        color: "#4A5F91",
+      };
+  }
+};

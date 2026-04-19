@@ -6,21 +6,17 @@ import {
   RACE_STATE_UPDATED_EVENT,
   WS_PAYLOAD_PREVIEW_MAX_LENGTH,
 } from "@/constants/race-state";
-import {
-  useGetCurrentQuery,
-  useGetDashboardQuery,
-} from "@/features/store/race-state/raceStateApi";
 import type {
   RaceCurrentState,
   RaceDashboard,
   RaceStateWsMessage,
 } from "@/features/store/race-state/raceStateTypes";
+import { setRaceStateTelemetryMetadata } from "@/features/store/race-state/raceStateTelemetrySlice";
 import {
   selectRaceStateUi,
   setLastWsPayloadPreview,
   setWsStatus,
 } from "@/features/store/race-state/raceStateUiSlice";
-import { applyRaceStateMessage } from "@/helpers/applyRaceStateMessage";
 import {
   buildRaceDashboardRows,
   buildSessionCards,
@@ -56,15 +52,8 @@ const useDashboardMocks = process.env.NEXT_PUBLIC_USE_DASHBOARD_MOCKS === "true"
 export const useRaceDashboardLive = () => {
   const dispatch = useDispatch();
   const wsUi = useSelector(selectRaceStateUi);
-  const dashboardQuery = useGetDashboardQuery(undefined, {
-    skip: useDashboardMocks,
-  });
-  const currentStateQuery = useGetCurrentQuery(undefined, {
-    skip: useDashboardMocks,
-  });
   const [liveDashboard, setLiveDashboard] = useState<RaceDashboard | null>(null);
   const [liveCurrentState, setLiveCurrentState] = useState<RaceCurrentState | null>(null);
-  const [hasLiveWsState, setHasLiveWsState] = useState(false);
   const [mockTick, setMockTick] = useState(0);
   const mockSnapshot = useMemo(
     () => buildMockRaceDashboardSnapshot(mockTick),
@@ -76,9 +65,23 @@ export const useRaceDashboardLive = () => {
       return;
     }
 
-    setHasLiveWsState(true);
     setLiveDashboard(mockSnapshot.dashboard);
     setLiveCurrentState(mockSnapshot.currentState);
+    dispatch(
+      setRaceStateTelemetryMetadata({
+        session: mockSnapshot.dashboard.session,
+        drivers: mockSnapshot.dashboard.leaderboard.map((driver) => ({
+          driverNumber: driver.driverNumber,
+          broadcastName: driver.broadcastName,
+          fullName: driver.fullName,
+          tla: driver.tla,
+          teamName: driver.teamName,
+          teamColor: driver.teamColor,
+          position: driver.position,
+          gridPosition: driver.gridPosition,
+        })),
+      })
+    );
     dispatch(setWsStatus("open"));
     dispatch(
       setLastWsPayloadPreview(
@@ -103,28 +106,6 @@ export const useRaceDashboardLive = () => {
     };
   }, []);
 
-  useEffect(() => {
-    if (useDashboardMocks) {
-      return;
-    }
-
-    const nextDashboard = dashboardQuery.data;
-    if (nextDashboard && !hasLiveWsState) {
-      setLiveDashboard(nextDashboard);
-    }
-  }, [dashboardQuery.data, hasLiveWsState]);
-
-  useEffect(() => {
-    if (useDashboardMocks) {
-      return;
-    }
-
-    const nextCurrentState = currentStateQuery.data;
-    if (nextCurrentState && !hasLiveWsState) {
-      setLiveCurrentState(nextCurrentState);
-    }
-  }, [currentStateQuery.data, hasLiveWsState]);
-
   useSignalR(defaultSignalRUrl, {
     enabled: !useDashboardMocks,
     onStatusChange: (status) => {
@@ -142,16 +123,27 @@ export const useRaceDashboardLive = () => {
 
           if (message.type === RACE_STATE_UPDATED_EVENT) {
             startTransition(() => {
-              setHasLiveWsState(true);
-              setLiveDashboard((currentDashboard) =>
-                applyRaceStateMessage(currentDashboard, message)
-              );
+              setLiveDashboard(message.dashboard);
               setLiveCurrentState(message.currentState);
             });
+            dispatch(
+              setRaceStateTelemetryMetadata({
+                session: message.dashboard.session,
+                drivers: message.dashboard.leaderboard.map((driver) => ({
+                  driverNumber: driver.driverNumber,
+                  broadcastName: driver.broadcastName,
+                  fullName: driver.fullName,
+                  tla: driver.tla,
+                  teamName: driver.teamName,
+                  teamColor: driver.teamColor,
+                  position: driver.position,
+                  gridPosition: driver.gridPosition,
+                })),
+              })
+            );
           }
         } catch {
-          void dashboardQuery.refetch();
-          void currentStateQuery.refetch();
+          dispatch(setWsStatus("error"));
         }
       }
     },
@@ -199,12 +191,22 @@ export const useRaceDashboardLive = () => {
     };
   }
 
+  const isLoading =
+    wsUi.wsStatus === "idle" ||
+    wsUi.wsStatus === "connecting" ||
+    (!liveDashboard && !liveCurrentState && wsUi.wsStatus !== "error");
+  const isError = wsUi.wsStatus === "error" || wsUi.wsStatus === "closed";
+
   return {
-    ...dashboardQuery,
     data: liveDashboard,
     currentState: liveCurrentState,
     wsUi,
     sessionCards,
     leaderboardRows,
+    isLoading,
+    isFetching: wsUi.wsStatus === "connecting",
+    isError,
+    error: isError ? new Error("Race-state SignalR connection is unavailable.") : undefined,
+    refetch: async () => ({ data: liveDashboard }),
   };
 };
