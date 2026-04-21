@@ -7,12 +7,9 @@ namespace F1.RaceState.Service.API.Controllers;
 [Route("api/race-state/analytics")]
 public sealed class RaceStateAnalyticsController(RaceStateAnalyticsQueryHandler queryHandler) : ControllerBase
 {
-    [HttpGet("drivers/{driverNumber:int}/segments")]
-    public async Task<IActionResult> GetDriverSegmentBuckets(
-        [FromRoute] int driverNumber,
+    [HttpGet("tyres/stints")]
+    public async Task<IActionResult> GetTyreStintStrategy(
         [FromQuery] string? sessionId,
-        [FromQuery] int lapNumber,
-        [FromQuery] int bucketCount = 10,
         CancellationToken cancellationToken = default)
     {
         var resolvedSessionId = queryHandler.Handle(new ResolveAnalyticsSessionIdQuery(sessionId));
@@ -22,36 +19,7 @@ public sealed class RaceStateAnalyticsController(RaceStateAnalyticsQueryHandler 
         }
 
         return Ok(await queryHandler.HandleAsync(
-            new GetDriverSegmentBucketsQuery(
-                resolvedSessionId,
-                driverNumber,
-                lapNumber,
-                bucketCount),
-            cancellationToken));
-    }
-
-    [HttpGet("drivers/{driverNumber:int}/telemetry")]
-    public async Task<IActionResult> GetLatestDriverTelemetry(
-        [FromRoute] int driverNumber,
-        [FromQuery] string? sessionId,
-        [FromQuery] int maxSamples = 0,
-        [FromQuery] DateTimeOffset? sinceTimestamp = null,
-        [FromQuery] string[]? metrics = null,
-        CancellationToken cancellationToken = default)
-    {
-        var resolvedSessionId = queryHandler.Handle(new ResolveAnalyticsSessionIdQuery(sessionId));
-        if (resolvedSessionId is null)
-        {
-            return BadRequest("sessionId is required.");
-        }
-
-        return Ok(await queryHandler.HandleAsync(
-            new GetLatestDriverTelemetryQuery(
-                resolvedSessionId,
-                driverNumber,
-                maxSamples,
-                sinceTimestamp,
-                ExpandMetrics(metrics)),
+            new GetTyreStintStrategyQuery(resolvedSessionId),
             cancellationToken));
     }
 

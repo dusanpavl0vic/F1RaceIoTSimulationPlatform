@@ -1,20 +1,6 @@
 using System.Text.Json.Serialization;
-using AnalyticsGrpc = F1.TelemetryAnalytics.Service.Grpc;
 
 namespace F1.RaceState.Service.Application.Models;
-
-public sealed record RaceAnalyticsDriverSegmentBucketsViewModel(
-    string SessionId,
-    int DriverNumber,
-    int LapNumber,
-    int BucketCount,
-    IReadOnlyList<AnalyticsGrpc.SegmentBucket> Buckets);
-
-public sealed record RaceAnalyticsDriverTelemetryViewModel(
-    string SessionId,
-    int DriverNumber,
-    IReadOnlyList<string> Metrics,
-    IReadOnlyList<RaceAnalyticsTelemetrySampleViewModel> Samples);
 
 public sealed record RaceAnalyticsDriverLapTelemetryViewModel(
     string SessionId,
@@ -55,3 +41,25 @@ public sealed record RaceAnalyticsTelemetrySampleViewModel(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? DrsEnabled { get; init; }
 }
+
+public sealed record RaceAnalyticsTyreStintStrategyViewModel(
+    string SessionId,
+    int TotalLaps,
+    IReadOnlyList<RaceAnalyticsTyreStintDriverViewModel> Drivers);
+
+public sealed record RaceAnalyticsTyreStintDriverViewModel(
+    int DriverNumber,
+    string DriverName,
+    string? TeamName,
+    string? TeamColor,
+    int? GridPosition,
+    int? Position,
+    IReadOnlyList<RaceAnalyticsTyreStintViewModel> Stints);
+
+public sealed record RaceAnalyticsTyreStintViewModel(
+    int StintNumber,
+    string? Compound,
+    bool? TyreIsNew,
+    int StartLap,
+    int EndLap,
+    int LapCount);

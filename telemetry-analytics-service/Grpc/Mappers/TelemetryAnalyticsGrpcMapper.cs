@@ -5,18 +5,38 @@ namespace F1.TelemetryAnalytics.Service.Grpc.Mappers;
 
 internal static class TelemetryAnalyticsGrpcMapper
 {
-    public static SegmentBucket MapSegmentBucket(SegmentBucketDto bucket)
+    public static TyreStintStrategyResponse MapTyreStintStrategy(TyreStintStrategyDto strategy)
+    => new()
+    {
+        SessionId = strategy.SessionId,
+        TotalLaps = strategy.TotalLaps
+    };
+
+    public static TyreStintDriver MapTyreStintDriver(TyreStintDriverDto driver)
+    {
+        var result = new TyreStintDriver
+        {
+            DriverNumber = driver.DriverNumber,
+            DriverName = driver.DriverName,
+            TeamName = driver.TeamName ?? string.Empty,
+            TeamColor = driver.TeamColor ?? string.Empty,
+            GridPosition = driver.GridPosition ?? 0,
+            Position = driver.Position ?? 0
+        };
+
+        result.Stints.AddRange(driver.Stints.Select(MapTyreStint));
+        return result;
+    }
+
+    private static TyreStint MapTyreStint(TyreStintDto stint)
         => new()
         {
-            BucketIndex = bucket.BucketIndex,
-            StartProgressPct = bucket.StartProgressPct,
-            EndProgressPct = bucket.EndProgressPct,
-            AvgSpeed = bucket.AverageSpeed,
-            MaxSpeed = bucket.MaxSpeed,
-            AvgThrottlePct = bucket.AverageThrottlePct,
-            BrakeUsagePct = bucket.BrakeUsagePct,
-            DrsUsagePct = bucket.DrsUsagePct,
-            Behavior = bucket.Behavior
+            StintNumber = stint.StintNumber,
+            Compound = stint.Compound ?? string.Empty,
+            TyreIsNew = stint.TyreIsNew ?? false,
+            StartLap = stint.StartLap ?? 0,
+            EndLap = stint.EndLap ?? 0,
+            LapCount = stint.LapCount ?? 0
         };
 
     public static LiveTelemetrySample MapLiveTelemetrySample(TelemetrySampleDto sample)

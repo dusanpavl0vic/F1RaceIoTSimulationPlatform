@@ -408,6 +408,102 @@ public sealed class PostgresAnalyticsRepository(
         return drivers;
     }
 
+    public async Task<TyreStintStrategyDto> GetTyreStintStrategyAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            select
+                coalesce(sess.total_laps, 0) as total_laps,
+                d.driver_number,
+                coalesce(d.abbreviation, d.broadcast_name, d.full_name, '#' || d.driver_number::text) as driver_name,
+                d.team_name,
+                d.team_color,
+                d.grid_position,
+                latest_lap.position,
+                st.stint_number,
+                st.compound,
+                st.tyre_is_new,
+                st.start_lap,
+                st.end_lap,
+                st.lap_count
+            from analytics_drivers d
+            left join analytics_sessions sess
+                on sess.session_id = d.session_id
+            left join lateral (
+                select position
+                from analytics_lap_summaries
+                where session_id = d.session_id
+                  and driver_number = d.driver_number
+                order by lap_number desc
+                limit 1
+            ) latest_lap on true
+            left join analytics_stint_summaries st
+                on st.session_id = d.session_id
+               and st.driver_number = d.driver_number
+            where d.session_id = @session_id
+            order by coalesce(latest_lap.position, 999), coalesce(d.grid_position, 999), d.driver_number, st.stint_number;
+            """;
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("session_id", sessionId);
+
+        var drivers = new Dictionary<int, TyreStrategyDriverBuilder>();
+        var totalLaps = 0;
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            totalLaps = Math.Max(totalLaps, reader.GetInt32(0));
+
+            var driverNumber = reader.GetInt32(1);
+            if (!drivers.TryGetValue(driverNumber, out var driver))
+            {
+                driver = new TyreStrategyDriverBuilder(
+                    driverNumber,
+                    reader.GetString(2),
+                    ReadNullableString(reader, 3),
+                    ReadNullableString(reader, 4),
+                    ReadNullableInt(reader, 5),
+                    ReadNullableInt(reader, 6));
+                drivers[driverNumber] = driver;
+            }
+
+            if (!reader.IsDBNull(7))
+            {
+                var startLap = ReadNullableInt(reader, 10);
+                var endLap = ReadNullableInt(reader, 11);
+                var lapCount = ReadNullableInt(reader, 12);
+                if (endLap is null && startLap is int start && lapCount is int count)
+                {
+                    endLap = start + Math.Max(0, count - 1);
+                }
+
+                driver.Stints.Add(new TyreStintDto(
+                    reader.GetInt32(7),
+                    ReadNullableString(reader, 8),
+                    reader.IsDBNull(9) ? null : reader.GetBoolean(9),
+                    startLap,
+                    endLap,
+                    lapCount));
+            }
+        }
+
+        var responseDrivers = drivers.Values
+            .Select(driver => driver.ToDto())
+            .ToArray();
+
+        var inferredTotalLaps = responseDrivers
+            .SelectMany(driver => driver.Stints)
+            .Select(stint => stint.EndLap ?? (stint.StartLap + stint.LapCount - 1) ?? 0)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return new TyreStintStrategyDto(
+            sessionId,
+            Math.Max(totalLaps, inferredTotalLaps),
+            responseDrivers);
+    }
+
     public async Task<(string DriverName, IReadOnlyList<DriverStintDto> Stints)> GetDriverStintsAsync(string sessionId, int driverNumber, CancellationToken cancellationToken)
     {
         const string sql = """
@@ -529,6 +625,39 @@ public sealed class PostgresAnalyticsRepository(
 
         throw new InvalidOperationException(
             $"Unable to connect to PostgreSQL using the available analytics connection settings. Tried {_connectionStrings.Length} candidate connection string(s). Last errors: {string.Join(" | ", failures.TakeLast(3))}");
+    }
+
+    private static string? ReadNullableString(IDataRecord record, int index)
+        => record.IsDBNull(index) ? null : record.GetString(index);
+
+    private static int? ReadNullableInt(IDataRecord record, int index)
+        => record.IsDBNull(index) ? null : record.GetInt32(index);
+
+    private sealed class TyreStrategyDriverBuilder(
+        int driverNumber,
+        string driverName,
+        string? teamName,
+        string? teamColor,
+        int? gridPosition,
+        int? position)
+    {
+        public int DriverNumber { get; } = driverNumber;
+        public string DriverName { get; } = driverName;
+        public string? TeamName { get; } = teamName;
+        public string? TeamColor { get; } = teamColor;
+        public int? GridPosition { get; } = gridPosition;
+        public int? Position { get; } = position;
+        public List<TyreStintDto> Stints { get; } = [];
+
+        public TyreStintDriverDto ToDto()
+            => new(
+                DriverNumber,
+                DriverName,
+                TeamName,
+                TeamColor,
+                GridPosition,
+                Position,
+                Stints.OrderBy(stint => stint.StintNumber).ToArray());
     }
 
     private static async Task<NpgsqlConnection> OpenConnectionAsync(string connectionString, CancellationToken cancellationToken)

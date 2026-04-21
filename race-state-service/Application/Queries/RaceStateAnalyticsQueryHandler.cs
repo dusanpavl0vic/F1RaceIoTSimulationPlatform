@@ -22,23 +22,18 @@ public sealed class RaceStateAnalyticsQueryHandler(
         return _raceStateStore.GetSnapshot().SessionId;
     }
 
-    public async Task<RaceAnalyticsDriverSegmentBucketsViewModel> HandleAsync(
-        GetDriverSegmentBucketsQuery query,
+    public async Task<RaceAnalyticsTyreStintStrategyViewModel> HandleAsync(
+        GetTyreStintStrategyQuery query,
         CancellationToken cancellationToken)
     {
-        var response = await _telemetryAnalyticsGateway.GetDriverSegmentBucketsAsync(
+        var response = await _telemetryAnalyticsGateway.GetTyreStintStrategyAsync(
             query.SessionId,
-            query.DriverNumber,
-            query.LapNumber,
-            query.BucketCount,
             cancellationToken);
 
-        return new RaceAnalyticsDriverSegmentBucketsViewModel(
-            query.SessionId,
-            query.DriverNumber,
-            query.LapNumber,
-            query.BucketCount,
-            response.Buckets);
+        return new RaceAnalyticsTyreStintStrategyViewModel(
+            response.SessionId,
+            response.TotalLaps,
+            response.Drivers.Select(MapTyreStintDriver).ToArray());
     }
 
     public async Task<RaceAnalyticsDriverLapTelemetryViewModel> HandleAsync(
@@ -56,25 +51,6 @@ public sealed class RaceStateAnalyticsQueryHandler(
             query.SessionId,
             query.DriverNumber,
             query.LapNumber,
-            response.ReturnedMetrics,
-            response.Samples.Select(sample => MapTelemetrySample(sample, response.ReturnedMetrics)).ToArray());
-    }
-
-    public async Task<RaceAnalyticsDriverTelemetryViewModel> HandleAsync(
-        GetLatestDriverTelemetryQuery query,
-        CancellationToken cancellationToken)
-    {
-        var response = await _telemetryAnalyticsGateway.GetLatestDriverTelemetryAsync(
-            query.SessionId,
-            query.DriverNumber,
-            query.MaxSamples,
-            query.SinceTimestamp,
-            query.Metrics,
-            cancellationToken);
-
-        return new RaceAnalyticsDriverTelemetryViewModel(
-            query.SessionId,
-            query.DriverNumber,
             response.ReturnedMetrics,
             response.Samples.Select(sample => MapTelemetrySample(sample, response.ReturnedMetrics)).ToArray());
     }
@@ -102,5 +78,36 @@ public sealed class RaceStateAnalyticsQueryHandler(
             Gear = requestedMetrics.Contains("gear") ? sample.Gear : null,
             DrsEnabled = requestedMetrics.Contains("drsEnabled") ? sample.DrsEnabled : null
         };
+    }
+
+    private static RaceAnalyticsTyreStintDriverViewModel MapTyreStintDriver(
+        AnalyticsGrpc.TyreStintDriver driver)
+        => new(
+            driver.DriverNumber,
+            driver.DriverName,
+            string.IsNullOrWhiteSpace(driver.TeamName) ? null : driver.TeamName,
+            string.IsNullOrWhiteSpace(driver.TeamColor) ? null : driver.TeamColor,
+            driver.GridPosition <= 0 ? null : driver.GridPosition,
+            driver.Position <= 0 ? null : driver.Position,
+            driver.Stints.Select(MapTyreStint).ToArray());
+
+    private static RaceAnalyticsTyreStintViewModel MapTyreStint(
+        AnalyticsGrpc.TyreStint stint)
+    {
+        var startLap = Math.Max(1, stint.StartLap);
+        var lapCount = stint.LapCount > 0
+            ? stint.LapCount
+            : Math.Max(1, stint.EndLap - startLap + 1);
+        var endLap = stint.EndLap > 0
+            ? stint.EndLap
+            : startLap + lapCount - 1;
+
+        return new RaceAnalyticsTyreStintViewModel(
+            stint.StintNumber,
+            string.IsNullOrWhiteSpace(stint.Compound) ? null : stint.Compound,
+            stint.TyreIsNew,
+            startLap,
+            endLap,
+            lapCount);
     }
 }

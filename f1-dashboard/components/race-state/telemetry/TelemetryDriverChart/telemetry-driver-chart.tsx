@@ -124,7 +124,7 @@ function TelemetryDriverChart({
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={chartPoints}
-                margin={{ top: 8, right: 14, left: -10, bottom: 0 }}
+                margin={{ top: 8, right: 18, left: 12, bottom: 0 }}
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
@@ -153,7 +153,7 @@ function TelemetryDriverChart({
                   tick={{ fontSize: 11, fill: "#3D5285" }}
                   axisLine={false}
                   tickLine={false}
-                  width={42}
+                  width={72}
                   allowDecimals={
                     selectedMetric === "speed" || selectedMetric === "rpm"
                   }

@@ -6,6 +6,5 @@ public sealed class AnalyticsOptions
 
     public bool StoreRawPayloads { get; set; } = true;
     public int LapCompareBucketCount { get; set; } = 20;
-    public int SegmentBucketCount { get; set; } = 10;
     public int LiveTelemetryBufferSize { get; set; } = 1000;
 }

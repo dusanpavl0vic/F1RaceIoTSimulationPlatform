@@ -49,71 +49,6 @@ public sealed class InfluxTelemetryClient(
         }
     }
 
-    public async Task<IReadOnlyList<TelemetryPointDto>> QueryLapTelemetryAsync(string sessionId, int driverNumber, int lapNumber, CancellationToken cancellationToken)
-    {
-        if (!_options.Enabled)
-        {
-            return [];
-        }
-
-        var flux = $$"""
-            from(bucket: "{{_options.Bucket}}")
-              |> range(start: 1970-01-01T00:00:00Z)
-              |> filter(fn: (r) => r._measurement == "telemetry_samples")
-              |> filter(fn: (r) => r.session_id == "{{EscapeFluxString(sessionId)}}")
-              |> filter(fn: (r) => r.driver_number == "{{driverNumber}}")
-              |> filter(fn: (r) => r.lap_number == "{{lapNumber}}")
-              |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-              |> keep(columns: ["_time", "sample_index", "speed", "rpm", "throttle_pct", "raw_throttle", "brake_pct", "raw_brake", "gear", "drs_enabled"])
-              |> sort(columns: ["sample_index", "_time"])
-            """;
-
-        using var response = await SendWithOptionalAuthRetryAsync(
-            includeAuthorization =>
-            {
-                var request = new HttpRequestMessage(
-                    HttpMethod.Post,
-                    $"{_options.BaseUrl.TrimEnd('/')}/api/v2/query?org={Uri.EscapeDataString(_options.Organization)}")
-                {
-                    Content = new StringContent($"{{\"query\":{System.Text.Json.JsonSerializer.Serialize(flux)}}}", Encoding.UTF8, "application/json")
-                };
-
-                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/csv"));
-                ApplyAuthorization(request, includeAuthorization);
-                return request;
-            },
-            cancellationToken);
-
-        response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
-        return InfluxTelemetryCsvParser.Parse(payload);
-    }
-
-    public async Task<IReadOnlyList<TelemetrySampleDto>> QueryDriverTelemetryAsync(
-        string sessionId,
-        int driverNumber,
-        int maxSamples,
-        DateTimeOffset? sinceTimestamp,
-        IReadOnlyCollection<string> requestedMetrics,
-        CancellationToken cancellationToken)
-    {
-        if (!_options.Enabled)
-        {
-            return [];
-        }
-
-        var selectedFields = TelemetryMetricCatalog.ResolveInfluxFields(requestedMetrics);
-        var flux = BuildTelemetrySamplesFlux(
-            sessionId,
-            $"|> filter(fn: (r) => r.driver_number == \"{driverNumber}\")",
-            maxSamples,
-            sinceTimestamp,
-            selectedFields);
-
-        var payload = await QueryTelemetryCsvAsync(flux, cancellationToken);
-        return InfluxTelemetryCsvParser.ParseTelemetrySamples(payload);
-    }
-
     public async Task<IReadOnlyList<TelemetrySampleDto>> QueryDriverLapTelemetryAsync(
         string sessionId,
         int driverNumber,
@@ -130,8 +65,6 @@ public sealed class InfluxTelemetryClient(
         var flux = BuildTelemetrySamplesFlux(
             sessionId,
             $"|> filter(fn: (r) => r.driver_number == \"{driverNumber}\")\n  |> filter(fn: (r) => r.lap_number == \"{lapNumber}\")",
-            maxSamples: 0,
-            sinceTimestamp: null,
             selectedFields);
 
         var payload = await QueryTelemetryCsvAsync(flux, cancellationToken);
@@ -144,11 +77,8 @@ public sealed class InfluxTelemetryClient(
     private string BuildTelemetrySamplesFlux(
         string sessionId,
         string driverFilter,
-        int maxSamples,
-        DateTimeOffset? sinceTimestamp,
         IReadOnlyCollection<string> selectedFields)
     {
-        var rangeStart = sinceTimestamp?.ToUniversalTime().ToString("O") ?? "1970-01-01T00:00:00Z";
         var keepColumns = new[]
         {
             "session_id",
@@ -161,25 +91,16 @@ public sealed class InfluxTelemetryClient(
         .Concat(selectedFields)
         .Distinct(StringComparer.Ordinal)
         .Select(field => $"\"{field}\"");
-        var limitClause = maxSamples > 0
-            ? $$"""
-              |> sort(columns: ["sample_index", "_time"], desc: true)
-              |> limit(n: {{maxSamples}})
-              |> sort(columns: ["driver_number", "sample_index", "_time"])
-              """
-            : """
-              |> sort(columns: ["driver_number", "sample_index", "_time"])
-              """;
 
         return $$"""
             from(bucket: "{{_options.Bucket}}")
-              |> range(start: {{rangeStart}})
+              |> range(start: 1970-01-01T00:00:00Z)
               |> filter(fn: (r) => r._measurement == "telemetry_samples")
               |> filter(fn: (r) => r.session_id == "{{EscapeFluxString(sessionId)}}")
               {{driverFilter}}
               |> pivot(rowKey: ["_time", "session_id", "driver_number", "lap_number", "stint_number"], columnKey: ["_field"], valueColumn: "_value")
               |> keep(columns: [{{string.Join(", ", keepColumns)}}])
-              {{limitClause}}
+              |> sort(columns: ["driver_number", "sample_index", "_time"])
             """;
     }
 

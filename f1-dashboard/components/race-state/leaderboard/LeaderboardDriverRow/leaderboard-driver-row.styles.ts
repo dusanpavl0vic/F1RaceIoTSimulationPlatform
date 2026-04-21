@@ -9,23 +9,10 @@ import {
   type TableRowProps,
   Typography,
 } from "@mui/material";
-import styled, { css, keyframes } from "styled-components";
-
-const flashGained = keyframes`
-  0%   { box-shadow: inset 0 0 0 200px rgba(0, 200, 83, 0.30); }
-  60%  { box-shadow: inset 0 0 0 200px rgba(0, 200, 83, 0.15); }
-  100% { box-shadow: inset 0 0 0 200px rgba(0, 200, 83, 0); }
-`;
-
-const flashLost = keyframes`
-  0%   { box-shadow: inset 0 0 0 200px rgba(220, 0, 0, 0.28); }
-  60%  { box-shadow: inset 0 0 0 200px rgba(220, 0, 0, 0.12); }
-  100% { box-shadow: inset 0 0 0 200px rgba(220, 0, 0, 0); }
-`;
+import styled from "styled-components";
 
 type DriverTableRowProps = TableRowProps & {
   $dimmed: boolean;
-  $flash: "gained" | "lost" | null;
 };
 
 export const StyledDriverTableRow = styled(TableRow)<DriverTableRowProps>`
@@ -39,22 +26,6 @@ export const StyledDriverTableRow = styled(TableRow)<DriverTableRowProps>`
     font-family: var(--font-silkscreen), "Silkscreen", monospace;
     font-size: 12px;
   }
-
-  ${({ $flash }) =>
-    $flash === "gained" &&
-    css`
-      & td {
-        animation: ${flashGained} 1s ease-out forwards;
-      }
-    `}
-
-  ${({ $flash }) =>
-    $flash === "lost" &&
-    css`
-      & td {
-        animation: ${flashLost} 1s ease-out forwards;
-      }
-    `}
 
   &:hover td {
     background-color: ${({ theme }) =>
@@ -159,18 +130,7 @@ export const StyledStatusBadgeLabel = styled(Typography)`
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
-`;
-
-export const StyledPosArrow = styled(Typography)<{
-  $direction: "gained" | "lost";
-}>`
-  display: inline-block;
-  margin-left: 4px;
-  font-size: 9px;
-  line-height: 1;
-  vertical-align: middle;
-  color: ${({ $direction }) =>
-    $direction === "gained" ? appColors.sectorGreen : appColors.formulaRed};
+  white-space: nowrap;
 `;
 
 const resolveStatusAccent = (

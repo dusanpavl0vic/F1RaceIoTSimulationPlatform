@@ -66,6 +66,31 @@ export type RaceTelemetryMetadata = {
   drivers: RaceTelemetryDriverSummary[];
 };
 
+export type RaceTyreStint = {
+  stintNumber: number;
+  compound: string | null;
+  tyreIsNew: boolean | null;
+  startLap: number;
+  endLap: number;
+  lapCount: number;
+};
+
+export type RaceTyreStintDriver = {
+  driverNumber: number;
+  driverName: string;
+  teamName: string | null;
+  teamColor: string | null;
+  gridPosition: number | null;
+  position: number | null;
+  stints: RaceTyreStint[];
+};
+
+export type RaceTyreStintStrategy = {
+  sessionId: string;
+  totalLaps: number;
+  drivers: RaceTyreStintDriver[];
+};
+
 export type RaceCurrentDriverState = {
   driverNumber: number;
   broadcastName: string | null;

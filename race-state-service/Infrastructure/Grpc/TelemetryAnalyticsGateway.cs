@@ -7,54 +7,15 @@ public sealed class TelemetryAnalyticsGateway(AnalyticsGrpc.TelemetryAnalytics.T
 {
     private readonly AnalyticsGrpc.TelemetryAnalytics.TelemetryAnalyticsClient _client = client;
 
-    public async Task<AnalyticsGrpc.DriverSegmentBucketsResponse> GetDriverSegmentBucketsAsync(
+    public async Task<AnalyticsGrpc.TyreStintStrategyResponse> GetTyreStintStrategyAsync(
         string sessionId,
-        int driverNumber,
-        int lapNumber,
-        int bucketCount,
         CancellationToken cancellationToken)
-        => await _client.GetDriverSegmentBucketsAsync(
-            new AnalyticsGrpc.DriverSegmentBucketsRequest
+        => await _client.GetTyreStintStrategyAsync(
+            new AnalyticsGrpc.TyreStintStrategyRequest
             {
-                SessionId = sessionId,
-                DriverNumber = driverNumber,
-                LapNumber = lapNumber,
-                BucketCount = bucketCount
+                SessionId = sessionId
             },
             cancellationToken: cancellationToken).ResponseAsync;
-
-    public async Task<AnalyticsGrpc.DriverTelemetryResponse> GetLatestDriverTelemetryAsync(
-        string sessionId,
-        int driverNumber,
-        int maxSamples,
-        DateTimeOffset? sinceTimestamp,
-        IReadOnlyCollection<string>? requestedMetrics,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var request = new AnalyticsGrpc.DriverTelemetryRequest
-            {
-                SessionId = sessionId,
-                DriverNumber = driverNumber,
-                MaxSamples = maxSamples,
-                SinceTimestamp = sinceTimestamp?.ToString("O") ?? string.Empty
-            };
-
-            if (requestedMetrics is not null)
-            {
-                request.RequestedMetrics.AddRange(requestedMetrics);
-            }
-
-            return await _client.GetLatestDriverTelemetryAsync(
-                request,
-                cancellationToken: cancellationToken).ResponseAsync;
-        }
-        catch (RpcException exception) when (exception.StatusCode == StatusCode.InvalidArgument)
-        {
-            throw new ArgumentException(exception.Status.Detail, nameof(requestedMetrics), exception);
-        }
-    }
 
     public async Task<AnalyticsGrpc.DriverLapTelemetryResponse> GetDriverLapTelemetryAsync(
         string sessionId,

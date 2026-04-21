@@ -5,43 +5,37 @@ option csharp_namespace = "F1.TelemetryAnalytics.Service.Grpc";
 package telemetryanalytics;
 
 service TelemetryAnalytics {
-  rpc GetDriverSegmentBuckets (DriverSegmentBucketsRequest) returns (DriverSegmentBucketsResponse);
+  rpc GetTyreStintStrategy (TyreStintStrategyRequest) returns (TyreStintStrategyResponse);
   rpc GetDriverLapTelemetry (DriverLapTelemetryRequest) returns (DriverLapTelemetryResponse);
-  rpc GetLatestDriverTelemetry (DriverTelemetryRequest) returns (DriverTelemetryResponse);
 }
 
-message DriverSegmentBucketsRequest {
+message TyreStintStrategyRequest {
   string session_id = 1;
-  int32 driver_number = 2;
-  int32 lap_number = 3;
-  int32 bucket_count = 4;
 }
 
-message SegmentBucket {
-  int32 bucket_index = 1;
-  double start_progress_pct = 2;
-  double end_progress_pct = 3;
-  double avg_speed = 4;
-  int32 max_speed = 5;
-  double avg_throttle_pct = 6;
-  double brake_usage_pct = 7;
-  double drs_usage_pct = 8;
-  string behavior = 9;
-}
-
-message DriverSegmentBucketsResponse {
+message TyreStintStrategyResponse {
   string session_id = 1;
-  int32 driver_number = 2;
-  int32 lap_number = 3;
-  repeated SegmentBucket buckets = 4;
+  int32 total_laps = 2;
+  repeated TyreStintDriver drivers = 3;
 }
 
-message DriverTelemetryRequest {
-  string session_id = 1;
-  int32 driver_number = 2;
-  int32 max_samples = 3;
-  string since_timestamp = 4;
-  repeated string requested_metrics = 5;
+message TyreStintDriver {
+  int32 driver_number = 1;
+  string driver_name = 2;
+  string team_name = 3;
+  string team_color = 4;
+  int32 grid_position = 5;
+  int32 position = 6;
+  repeated TyreStint stints = 7;
+}
+
+message TyreStint {
+  int32 stint_number = 1;
+  string compound = 2;
+  bool tyre_is_new = 3;
+  int32 start_lap = 4;
+  int32 end_lap = 5;
+  int32 lap_count = 6;
 }
 
 message DriverLapTelemetryRequest {
@@ -57,13 +51,6 @@ message DriverLapTelemetryResponse {
   int32 lap_number = 3;
   repeated string returned_metrics = 4;
   repeated LiveTelemetrySample samples = 5;
-}
-
-message DriverTelemetryResponse {
-  string session_id = 1;
-  int32 driver_number = 2;
-  repeated string returned_metrics = 3;
-  repeated LiveTelemetrySample samples = 4;
 }
 
 message LiveTelemetrySample {

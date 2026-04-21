@@ -1,6 +1,7 @@
 "use client";
 
 import { DashboardHero } from "@/components/race-state/dashboard/DashboardHero/dashboard-hero";
+import { useGetTyreStintStrategyQuery } from "@/features/store/race-state/raceStateApi";
 import { selectRaceStateTelemetry } from "@/features/store/race-state/raceStateTelemetrySlice";
 import type { RaceDashboardDriverRow } from "@/features/store/race-state/raceStateTypes";
 import { buildTelemetryDriverRows } from "@/helpers/telemetryDrivers";
@@ -9,10 +10,12 @@ import {
   type TelemetryMetricKey,
 } from "@/helpers/telemetryStream";
 import { useTelemetryLapData } from "@/hooks/useTelemetryLapData";
+import { skipToken } from "@reduxjs/toolkit/query";
 import { Box, CircularProgress, Typography } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import TelemetryDriverChart from "../TelemetryDriverChart/telemetry-driver-chart";
+import TelemetryTyreStrategyChart from "../TelemetryTyreStrategyChart/telemetry-tyre-strategy-chart";
 import {
   StyledTelemetryControlCard,
   StyledTelemetryControlGrid,
@@ -112,6 +115,13 @@ function TelemetryScreen() {
     lapNumber: selectedLapNumber,
     metric: selectedMetric,
   });
+  const {
+    data: tyreStrategy,
+    error: tyreStrategyError,
+    isFetching: tyreStrategyLoading,
+  } = useGetTyreStintStrategyQuery(
+    activeTab === "tyre-strategy" && sessionId ? sessionId : skipToken,
+  );
 
   if (
     telemetryMetadataStatus === "loading" ||
@@ -149,6 +159,10 @@ function TelemetryScreen() {
           <StyledTelemetryPageTab
             value="telemetry-history"
             label="TELEMETRY HISTORY"
+          />
+          <StyledTelemetryPageTab
+            value="tyre-strategy"
+            label="TYRE STRATEGY"
           />
         </StyledTelemetryPageTabs>
 
@@ -260,9 +274,43 @@ function TelemetryScreen() {
             )}
           </StyledTelemetryTabPanel>
         )}
+
+        {activeTab === "tyre-strategy" && (
+          <StyledTelemetryTabPanel>
+            <StyledTelemetryPanelIntro>
+              <Box>
+                <StyledTelemetryPanelTitle>
+                  POSTGRESQL TYRE STRATEGY
+                </StyledTelemetryPanelTitle>
+              </Box>
+            </StyledTelemetryPanelIntro>
+
+            <TelemetryTyreStrategyChart
+              strategy={tyreStrategy}
+              isLoading={tyreStrategyLoading}
+              errorMessage={resolveRtkQueryError(tyreStrategyError)}
+            />
+          </StyledTelemetryTabPanel>
+        )}
       </StyledTelemetryTabsShell>
     </StyledTelemetryShell>
   );
 }
+
+const resolveRtkQueryError = (error: unknown) => {
+  if (!error) {
+    return null;
+  }
+
+  if (typeof error === "object" && error !== null && "status" in error) {
+    return `Tyre strategy API returned ${String(error.status)}.`;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Tyre strategy request failed.";
+};
 
 export default TelemetryScreen;

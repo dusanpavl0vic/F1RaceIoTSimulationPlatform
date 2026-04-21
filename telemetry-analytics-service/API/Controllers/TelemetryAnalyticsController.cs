@@ -9,57 +9,11 @@ public sealed class TelemetryAnalyticsController(IAnalyticsQueryService analytic
 {
     private readonly IAnalyticsQueryService _analyticsQueryService = analyticsQueryService;
 
-    [HttpGet("drivers/{driverNumber:int}/segments")]
-    public async Task<IActionResult> GetDriverSegmentBuckets(
-        [FromRoute] int driverNumber,
+    [HttpGet("tyres/stints")]
+    public async Task<IActionResult> GetTyreStintStrategy(
         [FromQuery] string sessionId,
-        [FromQuery] int lapNumber,
-        [FromQuery] int bucketCount = 10,
         CancellationToken cancellationToken = default)
-    {
-        var result = await _analyticsQueryService.GetDriverSegmentBucketsAsync(
-            sessionId,
-            driverNumber,
-            lapNumber,
-            bucketCount,
-            cancellationToken);
-
-        return Ok(new
-        {
-            sessionId,
-            driverNumber,
-            lapNumber,
-            bucketCount,
-            buckets = result
-        });
-    }
-
-    [HttpGet("drivers/{driverNumber:int}/telemetry")]
-    public async Task<IActionResult> GetLatestDriverTelemetry(
-        [FromRoute] int driverNumber,
-        [FromQuery] string sessionId,
-        [FromQuery] int maxSamples = 200,
-        [FromQuery] DateTimeOffset? sinceTimestamp = null,
-        [FromQuery] string[]? metrics = null,
-        CancellationToken cancellationToken = default)
-    {
-        var result = await _analyticsQueryService.GetLatestDriverTelemetryAsync(
-            sessionId,
-            driverNumber,
-            maxSamples,
-            sinceTimestamp,
-            ExpandMetrics(metrics),
-            cancellationToken);
-
-        return Ok(new
-        {
-            sessionId,
-            driverNumber,
-            sinceTimestamp,
-            metrics = result.Metrics,
-            samples = result.Samples
-        });
-    }
+        => Ok(await _analyticsQueryService.GetTyreStintStrategyAsync(sessionId, cancellationToken));
 
     [HttpGet("drivers/{driverNumber:int}/laps/{lapNumber:int}/telemetry")]
     public async Task<IActionResult> GetDriverLapTelemetry(
