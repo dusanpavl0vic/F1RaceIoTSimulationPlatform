@@ -23,8 +23,7 @@ export const StyledPanelHeader = styled(Box)`
 export const StyledPanelTitle = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
   font-weight: 700;
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
+  font-size: 12px;
   color: ${({ theme }) => theme.colors.textPrimary};
 `;
 
@@ -54,8 +53,7 @@ export const StyledStatRow = styled(Box)`
 
 export const StyledStatLabel = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
-  font-size: 0.60rem;
-  letter-spacing: 0.08em;
+  font-size: 10px;
   color: ${({ theme }) => theme.colors.textMuted};
 `;
 
@@ -75,15 +73,14 @@ export const StyledStatusBadge = styled(Box)<{ $tone: "live" | "warning" | "erro
 
 export const StyledStatusBadgeLabel = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
-  font-size: 0.56rem;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.08em;
   line-height: 1;
 `;
 
 export const StyledStatTimeValue = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
-  font-size: 0.72rem;
+  font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: ${({ theme }) => theme.colors.textPrimary};

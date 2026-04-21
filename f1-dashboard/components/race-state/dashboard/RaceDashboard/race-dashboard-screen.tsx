@@ -1,6 +1,6 @@
 "use client";
 
-import { LeaderboardTable } from "@/components/race-state/leaderboard/leaderboard-table";
+import LeaderboardTable from "@/components/race-state/leaderboard/LeaderboardTable/leaderboard-table";
 import { useDevice } from "@/hooks/use-device";
 import { useRaceDashboardLive } from "@/hooks/useRaceDashboardLive";
 import { CircularProgress, Typography } from "@mui/material";

@@ -47,14 +47,14 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
           ".MuiTableCell-root": {
             color: styledTheme.colors.textPrimary,
             borderColor: styledTheme.colors.border,
-            fontSize: "0.75rem",
+            fontSize: "12px",
             padding: "6px 10px",
           },
           ".MuiTableCell-head": {
             fontWeight: 700,
             letterSpacing: "0.10em",
             textTransform: "uppercase",
-            fontSize: "0.60rem",
+            fontSize: "10px",
             color: styledTheme.colors.textMuted,
             backgroundColor: styledTheme.isDark
               ? styledTheme.colors.background
@@ -64,7 +64,7 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
           ".MuiChip-root": {
             borderRadius: 4,
             fontWeight: 700,
-            fontSize: "0.60rem",
+            fontSize: "10px",
             letterSpacing: "0.06em",
             height: 20,
           },

@@ -17,39 +17,39 @@ export const StyledTyreBadge = styled(Box)<{ $compound: string; $filled: boolean
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid ${({ $compound, theme }) => resolveTyreAccent($compound, theme, 0.45)};
+  border: 2px solid
+    ${({ $compound, theme }) => resolveTyreAccent($compound, theme, 0.45)};
   background-color: ${({ $compound, $filled, theme }) =>
     theme.isDark
       ? "#FFFFFF"
       : $filled
-      ? resolveTyreAccent($compound, theme, 0.92)
-      : resolveTyreAccent($compound, theme, 0.10)};
+        ? resolveTyreAccent($compound, theme, 0.92)
+        : resolveTyreAccent($compound, theme, 0.10)};
   color: ${({ $compound, $filled, theme }) =>
     theme.isDark
       ? resolveTyreTextOnLight($compound)
       : $filled
-      ? resolveTyreForeground($compound, theme)
-      : resolveTyreAccent($compound, theme, 1)};
+        ? resolveTyreForeground($compound, theme)
+        : resolveTyreAccent($compound, theme, 1)};
 `;
 
 export const StyledTyreBadgeLabel = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
-  font-size: 0.56rem;
+  font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.08em;
   line-height: 1;
 `;
 
 export const StyledTyreLapCount = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
-  font-size: 0.60rem;
+  font-size: 10px;
   color: ${({ theme }) => theme.colors.textMuted};
 `;
 
 const resolveTyreAccent = (
   compound: string,
   theme: { colors: { textPrimary: string } },
-  alpha: number
+  alpha: number,
 ) => {
   const lowered = compound.toLowerCase();
 
@@ -78,7 +78,7 @@ const resolveTyreAccent = (
 
 const resolveTyreForeground = (
   compound: string,
-  theme: { colors: { textPrimary: string; panel: string } }
+  theme: { colors: { textPrimary: string; panel: string } },
 ) => {
   const lowered = compound.toLowerCase();
 

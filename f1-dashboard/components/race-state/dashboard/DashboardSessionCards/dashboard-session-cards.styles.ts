@@ -39,10 +39,9 @@ export const StyledHeroHeader = styled(Box)`
 
 export const StyledHeroValue = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
-  font-size: clamp(1.2rem, 2.6vw, 2rem);
+  font-size: 20px;
   line-height: 1.1;
   color: ${({ theme }) => theme.colors.textPrimary};
-  text-wrap: balance;
 `;
 
 export const StyledCardsCluster = styled(Box)`
@@ -74,7 +73,7 @@ export const StyledCardEyebrow = styled(Typography)`
   align-items: center;
   gap: 6px;
   margin-bottom: 8px;
-  font-size: 0.58rem;
+  font-size: 15px;
   font-weight: 700;
   color: ${({ theme }) => theme.colors.formulaRed};
   text-transform: uppercase;
@@ -91,7 +90,7 @@ export const StyledCardValue = styled(Typography) <{ $small?: boolean }>`
   display: block;
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
   font-weight: 700;
-  font-size: ${({ $small }) => ($small ? "0.82rem" : "1.2rem")};
+  font-size: 20px;
   color: ${({ theme }) => theme.colors.textPrimary};
   word-break: break-word;
   line-height: 1.25;

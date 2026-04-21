@@ -1,3 +1,4 @@
+import LeaderboardDriverRow from "@/components/race-state/leaderboard/LeaderboardDriverRow/leaderboard-driver-row";
 import type { RaceDashboardDriverRow } from "@/features/store/race-state/raceStateTypes";
 import {
   Table,
@@ -6,8 +7,7 @@ import {
   TableHead,
   TableRow,
 } from "@mui/material";
-import { useRef } from "react";
-import { LeaderboardDriverRow } from "./leaderboard-driver-row";
+import { useMemo, useRef } from "react";
 import {
   StyledHeadCell,
   StyledLastHeadCell,
@@ -25,32 +25,41 @@ type LeaderboardTableProps = {
   isTablet: boolean;
 };
 
-export const LeaderboardTable = ({
+const resolveRowPosition = (row: RaceDashboardDriverRow) =>
+  row.position ?? row.gridPosition ?? row.line;
+
+function LeaderboardTable({
   rows,
   isMobile,
   isTablet,
-}: LeaderboardTableProps) => {
+}: LeaderboardTableProps) {
   const prevPositions = useRef<Map<number, number>>(new Map());
+  const positionChanges = useMemo(() => {
+    const changes = new Map<number, "gained" | "lost">();
 
-  const positionChanges = new Map<number, "gained" | "lost">();
-  for (const row of rows) {
-    const pos = row.position ?? row.gridPosition ?? row.line;
-    const prev = prevPositions.current.get(row.driverNumber);
-    if (
-      prev !== undefined &&
-      pos !== null &&
-      pos !== undefined &&
-      prev !== pos
-    ) {
-      positionChanges.set(row.driverNumber, pos < prev ? "gained" : "lost");
+    for (const row of rows) {
+      const position = resolveRowPosition(row);
+      const previousPosition = prevPositions.current.get(row.driverNumber);
+
+      if (
+        previousPosition !== undefined &&
+        position !== null &&
+        position !== undefined &&
+        previousPosition !== position
+      ) {
+        changes.set(
+          row.driverNumber,
+          position < previousPosition ? "gained" : "lost",
+        );
+      }
     }
-  }
-  prevPositions.current = new Map(
-    rows.map((r) => [
-      r.driverNumber,
-      r.position ?? r.gridPosition ?? r.line ?? 0,
-    ]),
-  );
+
+    prevPositions.current = new Map(
+      rows.map((row) => [row.driverNumber, resolveRowPosition(row) ?? 0]),
+    );
+
+    return changes;
+  }, [rows]);
 
   return (
     <StyledTableWrapper>
@@ -89,4 +98,6 @@ export const LeaderboardTable = ({
       </TableContainer>
     </StyledTableWrapper>
   );
-};
+}
+
+export default LeaderboardTable;

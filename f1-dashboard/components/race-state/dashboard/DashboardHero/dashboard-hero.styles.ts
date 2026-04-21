@@ -24,20 +24,18 @@ export const StyledHeroTitle = styled(Typography)`
   margin: 0;
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
   font-weight: 700;
-  font-size: 0.95rem;
-  letter-spacing: 0.10em;
+  font-size: 15px;
   color: ${({ theme }) => theme.colors.textPrimary};
   line-height: 1.3;
 
   ${({ theme }) => theme.breakpoints.down("sm")} {
-    font-size: 0.82rem;
+    font-size: 13px;
   }
 `;
 
 export const StyledHeroSubtitle = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
-  font-size: 0.58rem;
-  letter-spacing: 0.08em;
+  font-size: 9px;
   color: ${({ theme }) => theme.colors.textMuted};
 `;
 
@@ -53,8 +51,7 @@ export const StyledHeroActionButton = styled(Button)<{ $active?: boolean }>`
   border-radius: 999px !important;
   padding: 8px 14px !important;
   font-family: var(--font-silkscreen), "Silkscreen", monospace !important;
-  font-size: 0.58rem !important;
-  letter-spacing: 0.08em !important;
+  font-size: 9px !important;
   border-color: ${({ theme }) => theme.colors.border} !important;
   color: ${({ $active, theme }) =>
     $active ? theme.colors.panel : theme.colors.textPrimary} !important;

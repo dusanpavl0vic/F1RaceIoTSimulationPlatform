@@ -1,12 +1,9 @@
 "use client";
 
 import { DashboardHero } from "@/components/race-state/dashboard/DashboardHero/dashboard-hero";
-import { TelemetryDriverChart } from "@/components/race-state/telemetry/TelemetryScreen/telemetry-driver-chart";
-import type {
-  RaceDashboardDriverRow,
-  RaceTelemetryDriverSummary,
-} from "@/features/store/race-state/raceStateTypes";
 import { selectRaceStateTelemetry } from "@/features/store/race-state/raceStateTelemetrySlice";
+import type { RaceDashboardDriverRow } from "@/features/store/race-state/raceStateTypes";
+import { buildTelemetryDriverRows } from "@/helpers/telemetryDrivers";
 import {
   telemetryMetricOptions,
   type TelemetryMetricKey,
@@ -15,6 +12,7 @@ import { useTelemetryLapData } from "@/hooks/useTelemetryLapData";
 import { Box, CircularProgress, Typography } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
+import TelemetryDriverChart from "../TelemetryDriverChart/telemetry-driver-chart";
 import {
   StyledTelemetryControlCard,
   StyledTelemetryControlGrid,
@@ -28,7 +26,6 @@ import {
   StyledTelemetryMenuItem,
   StyledTelemetryPageTab,
   StyledTelemetryPageTabs,
-  StyledTelemetryPanelCaption,
   StyledTelemetryPanelIntro,
   StyledTelemetryPanelTitle,
   StyledTelemetrySelect,
@@ -39,11 +36,16 @@ import {
 
 const defaultMetric = "speed" as const;
 
-export const TelemetryScreen = () => {
+function TelemetryScreen() {
   const [activeTab, setActiveTab] = useState("telemetry-history");
-  const [selectedDriverNumber, setSelectedDriverNumber] = useState<number | null>(null);
-  const [selectedLapNumber, setSelectedLapNumber] = useState<number | null>(null);
-  const [selectedMetric, setSelectedMetric] = useState<TelemetryMetricKey>(defaultMetric);
+  const [selectedDriverNumber, setSelectedDriverNumber] = useState<
+    number | null
+  >(null);
+  const [selectedLapNumber, setSelectedLapNumber] = useState<number | null>(
+    null,
+  );
+  const [selectedMetric, setSelectedMetric] =
+    useState<TelemetryMetricKey>(defaultMetric);
 
   const {
     drivers,
@@ -52,45 +54,18 @@ export const TelemetryScreen = () => {
     error: telemetryMetadataError,
   } = useSelector(selectRaceStateTelemetry);
   const leaderboardRows = useMemo(
-    () =>
-      drivers.map((driver: RaceTelemetryDriverSummary) => ({
-        driverNumber: driver.driverNumber,
-        broadcastName: driver.broadcastName,
-        fullName: driver.fullName,
-        tla: driver.tla,
-        teamName: driver.teamName,
-        teamColor: driver.teamColor,
-        position: driver.position,
-        line: null,
-        gridPosition: driver.gridPosition,
-        gapToLeader: null,
-        intervalToPositionAhead: null,
-        isCatchingAhead: null,
-        inPit: false,
-        pitOut: false,
-        retired: false,
-        stopped: false,
-        didNotStart: false,
-        status: null,
-        bestLapTime: null,
-        lastLapTime: null,
-        tyreCompound: null,
-        tyreIsNew: null,
-        currentStintLapCount: null,
-        driverLabel: driver.tla || driver.broadcastName || driver.fullName || `#${driver.driverNumber}`,
-        displayTeamName: driver.teamName ?? "-",
-        pitFlag: "-",
-        statusLabel: "-",
-      })),
-    [drivers]
+    () => buildTelemetryDriverRows(drivers),
+    [drivers],
   );
   const sessionId = session?.sessionId ?? null;
   const selectedDriver = useMemo(
     () =>
-      leaderboardRows.find((driver) => driver.driverNumber === selectedDriverNumber) ??
+      leaderboardRows.find(
+        (driver) => driver.driverNumber === selectedDriverNumber,
+      ) ??
       leaderboardRows[0] ??
       null,
-    [leaderboardRows, selectedDriverNumber]
+    [leaderboardRows, selectedDriverNumber],
   );
   const selectedMetricOption =
     telemetryMetricOptions.find((metric) => metric.key === selectedMetric) ??
@@ -112,7 +87,9 @@ export const TelemetryScreen = () => {
 
     if (
       selectedDriverNumber &&
-      !leaderboardRows.some((driver) => driver.driverNumber === selectedDriverNumber)
+      !leaderboardRows.some(
+        (driver) => driver.driverNumber === selectedDriverNumber,
+      )
     ) {
       setSelectedDriverNumber(leaderboardRows[0]?.driverNumber ?? null);
     }
@@ -136,7 +113,10 @@ export const TelemetryScreen = () => {
     metric: selectedMetric,
   });
 
-  if (telemetryMetadataStatus === "loading" || telemetryMetadataStatus === "idle") {
+  if (
+    telemetryMetadataStatus === "loading" ||
+    telemetryMetadataStatus === "idle"
+  ) {
     return (
       <StyledTelemetryShell>
         <CircularProgress size={24} />
@@ -150,7 +130,8 @@ export const TelemetryScreen = () => {
       <StyledTelemetryShell>
         <Typography variant="h4">Telemetry unavailable</Typography>
         <Typography color="text.secondary">
-          {telemetryMetadataError ?? "Telemetry page trenutno nema dostupnu sesiju."}
+          {telemetryMetadataError ??
+            "Telemetry page trenutno nema dostupnu sesiju."}
         </Typography>
       </StyledTelemetryShell>
     );
@@ -165,26 +146,28 @@ export const TelemetryScreen = () => {
           value={activeTab}
           onChange={(_, nextValue) => setActiveTab(nextValue)}
         >
-          <StyledTelemetryPageTab value="telemetry-history" label="TELEMETRY HISTORY" />
+          <StyledTelemetryPageTab
+            value="telemetry-history"
+            label="TELEMETRY HISTORY"
+          />
         </StyledTelemetryPageTabs>
 
         {activeTab === "telemetry-history" && (
           <StyledTelemetryTabPanel>
             <StyledTelemetryPanelIntro>
               <Box>
-                <StyledTelemetryPanelTitle>PERSISTED TELEMETRY HISTORY</StyledTelemetryPanelTitle>
-                <StyledTelemetryPanelCaption>
-                  Select a driver, lap and telemetry metric. The dashboard sends a plain request to
-                  `race-state`, which forwards the filter to the telemetry microservice and returns
-                  only the samples for that lap and metric.
-                </StyledTelemetryPanelCaption>
+                <StyledTelemetryPanelTitle>
+                  PERSISTED TELEMETRY HISTORY
+                </StyledTelemetryPanelTitle>
               </Box>
             </StyledTelemetryPanelIntro>
 
             <StyledTelemetryFilters>
               <StyledTelemetryDriverTabs
                 value={selectedDriver?.driverNumber ?? false}
-                onChange={(_, nextValue) => setSelectedDriverNumber(Number(nextValue))}
+                onChange={(_, nextValue) =>
+                  setSelectedDriverNumber(Number(nextValue))
+                }
                 variant="scrollable"
                 scrollButtons="auto"
               >
@@ -199,7 +182,9 @@ export const TelemetryScreen = () => {
 
               <StyledTelemetryControlGrid>
                 <StyledTelemetryControlCard>
-                  <StyledTelemetryControlLabel>ACTIVE DRIVER</StyledTelemetryControlLabel>
+                  <StyledTelemetryControlLabel>
+                    ACTIVE DRIVER
+                  </StyledTelemetryControlLabel>
                   <StyledTelemetryControlValue>
                     {selectedDriver
                       ? `${selectedDriver.fullName ?? selectedDriver.broadcastName ?? selectedDriver.tla ?? selectedDriver.driverLabel}`
@@ -211,11 +196,15 @@ export const TelemetryScreen = () => {
                 </StyledTelemetryControlCard>
 
                 <StyledTelemetryControlCard>
-                  <StyledTelemetryControlLabel>SELECT LAP</StyledTelemetryControlLabel>
+                  <StyledTelemetryControlLabel>
+                    SELECT LAP
+                  </StyledTelemetryControlLabel>
                   <StyledTelemetryFormControl size="small">
                     <StyledTelemetrySelect
                       value={selectedLapNumber ?? ""}
-                      onChange={(event) => setSelectedLapNumber(Number(event.target.value))}
+                      onChange={(event) =>
+                        setSelectedLapNumber(Number(event.target.value))
+                      }
                       displayEmpty
                     >
                       {availableLaps.length === 0 ? (
@@ -224,7 +213,10 @@ export const TelemetryScreen = () => {
                         </StyledTelemetryMenuItem>
                       ) : (
                         availableLaps.map((lapNumber) => (
-                          <StyledTelemetryMenuItem key={lapNumber} value={lapNumber}>
+                          <StyledTelemetryMenuItem
+                            key={lapNumber}
+                            value={lapNumber}
+                          >
                             LAP {lapNumber}
                           </StyledTelemetryMenuItem>
                         ))
@@ -234,7 +226,9 @@ export const TelemetryScreen = () => {
                 </StyledTelemetryControlCard>
 
                 <StyledTelemetryControlCard>
-                  <StyledTelemetryControlLabel>REQUESTED METRIC</StyledTelemetryControlLabel>
+                  <StyledTelemetryControlLabel>
+                    REQUESTED METRIC
+                  </StyledTelemetryControlLabel>
                   <StyledTelemetryControlValue>
                     {selectedMetricOption.label}
                   </StyledTelemetryControlValue>
@@ -259,7 +253,9 @@ export const TelemetryScreen = () => {
               />
             ) : (
               <Box>
-                <Typography color="text.secondary">No telemetry driver is currently available.</Typography>
+                <Typography color="text.secondary">
+                  No telemetry driver is currently available.
+                </Typography>
               </Box>
             )}
           </StyledTelemetryTabPanel>
@@ -267,4 +263,6 @@ export const TelemetryScreen = () => {
       </StyledTelemetryTabsShell>
     </StyledTelemetryShell>
   );
-};
+}
+
+export default TelemetryScreen;

@@ -39,16 +39,14 @@ export const StyledLogoTexts = styled(Box)`
 export const StyledLogoTitle = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
   font-weight: 700;
-  font-size: 0.80rem;
-  letter-spacing: 0.12em;
+  font-size: 13px;
   color: ${({ theme }) => theme.colors.textPrimary};
   line-height: 1.2;
 `;
 
 export const StyledLogoSubtitle = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
-  font-size: 0.55rem;
-  letter-spacing: 0.10em;
+  font-size: 9px;
   color: ${({ theme }) => theme.colors.textMuted};
   line-height: 1;
   margin-top: 3px;
@@ -66,8 +64,7 @@ export const StyledToggleRow = styled(Box)`
 
 export const StyledToggleLabel = styled(Typography) <{ $active: boolean }>`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
-  font-size: 0.55rem;
-  letter-spacing: 0.10em;
+  font-size: 9px;
   font-weight: ${({ $active }) => ($active ? 700 : 400)};
   color: ${({ $active, theme }) => ($active ? appColors.formulaRed : theme.colors.textMuted)};
 `;

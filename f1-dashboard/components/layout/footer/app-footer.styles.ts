@@ -36,16 +36,14 @@ export const StyledFooterIdentity = styled(Box)`
 export const StyledFooterName = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
   font-weight: 700;
-  font-size: 0.68rem;
-  letter-spacing: 0.10em;
+  font-size: 11px;
   color: ${({ theme }) => theme.colors.textPrimary};
   line-height: 1.4;
 `;
 
 export const StyledFooterUniversity = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
-  font-size: 0.55rem;
-  letter-spacing: 0.08em;
+  font-size: 9px;
   color: ${({ theme }) => theme.colors.textMuted};
 `;
 
@@ -60,8 +58,7 @@ export const StyledGithubLink = styled(Button)`
   text-decoration: none;
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
   font-weight: 700;
-  font-size: 0.60rem;
-  letter-spacing: 0.10em;
+  font-size: 10px;
   border-radius: 3px;
   transition: background-color 0.12s, color 0.12s;
 

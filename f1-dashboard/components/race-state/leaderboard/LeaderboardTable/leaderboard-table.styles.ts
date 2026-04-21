@@ -8,20 +8,22 @@ export const StyledHeadCell = styled(TableCell)`
   padding-bottom: 11px !important;
   font-family: var(--font-silkscreen), "Silkscreen", monospace !important;
   font-weight: 700 !important;
-  font-size: 0.60rem !important;
-  letter-spacing: 0.10em !important;
+  font-size: 10px !important;
   text-transform: uppercase !important;
   white-space: nowrap !important;
   color: ${({ theme }) => theme.colors.textMuted} !important;
   background-color: ${({ theme }) =>
-    theme.isDark ? theme.colors.background : theme.colors.backgroundSoft} !important;
+    theme.isDark
+      ? theme.colors.background
+      : theme.colors.backgroundSoft} !important;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border} !important;
 `;
 
 export const StyledTableWrapper = styled(Box)`
   border-radius: 16px;
   border: 1px solid ${({ theme }) => theme.colors.border};
-  background-color: ${({ theme }) => theme.isDark ? theme.colors.panel : theme.colors.background};
+  background-color: ${({ theme }) =>
+    theme.isDark ? theme.colors.panel : theme.colors.background};
   overflow: hidden;
 `;
 
@@ -37,8 +39,7 @@ export const StyledTableTopBar = styled(Box)`
 export const StyledTableTitle = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
   font-weight: 700;
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
+  font-size: 12px;
   color: ${({ theme }) => theme.colors.textPrimary};
 `;
 
@@ -58,7 +59,6 @@ export const StyledLastHeadCell = styled(StyledHeadCell)`
 
 export const StyledTableCount = styled(Typography)`
   font-family: var(--font-silkscreen), "Silkscreen", monospace;
-  font-size: 0.58rem;
-  letter-spacing: 0.06em;
+  font-size: 9px;
   color: ${({ theme }) => theme.colors.textMuted};
 `;

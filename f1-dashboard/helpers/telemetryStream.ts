@@ -76,6 +76,42 @@ export const formatTelemetryTimestamp = (timestamp: string) => {
   });
 };
 
+export const resolveTelemetryMetricDomain = (metric: TelemetryMetricKey) => {
+  switch (metric) {
+    case "throttlePct":
+    case "brakePct":
+      return [0, 100] as const;
+    case "gear":
+      return [1, 8] as const;
+    case "drsEnabled":
+      return [0, 1] as const;
+    default:
+      return ["auto", "auto"] as const;
+  }
+};
+
+export const formatTelemetryAxisValue = (
+  metric: TelemetryMetricKey,
+  value: number,
+) => {
+  if (metric === "drsEnabled") {
+    return value > 0 ? "ON" : "OFF";
+  }
+
+  return `${Math.round(value)}`;
+};
+
+export const resolveTelemetryMetricValue = (
+  sample: RaceStateTelemetrySample,
+  metric: TelemetryMetricKey,
+) => {
+  if (metric === "drsEnabled") {
+    return sample.drsEnabled ? 1 : 0;
+  }
+
+  return sample[metric] ?? null;
+};
+
 export const buildMockTelemetrySample = (
   sessionId: string,
   driverNumber: number,
