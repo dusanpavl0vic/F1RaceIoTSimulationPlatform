@@ -1,9 +1,20 @@
 "use client";
 
 import { DashboardHero } from "@/components/race-state/dashboard/DashboardHero/dashboard-hero";
-import { useGetTyreStintStrategyQuery } from "@/features/store/race-state/raceStateApi";
-import { selectRaceStateTelemetry } from "@/features/store/race-state/raceStateTelemetrySlice";
-import type { RaceDashboardDriverRow } from "@/features/store/race-state/raceStateTypes";
+import {
+  useGetDashboardQuery,
+  useGetTyreStintStrategyQuery,
+} from "@/features/store/race-state/raceStateApi";
+import {
+  selectRaceStateTelemetry,
+  setRaceStateTelemetryError,
+  setRaceStateTelemetryLoading,
+  setRaceStateTelemetryMetadata,
+} from "@/features/store/race-state/raceStateTelemetrySlice";
+import type {
+  RaceDashboard,
+  RaceDashboardDriverRow,
+} from "@/features/store/race-state/raceStateTypes";
 import { buildTelemetryDriverRows } from "@/helpers/telemetryDrivers";
 import {
   telemetryMetricOptions,
@@ -13,7 +24,7 @@ import { useTelemetryLapData } from "@/hooks/useTelemetryLapData";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { Box, CircularProgress, Typography } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import TelemetryDriverChart from "../TelemetryDriverChart/telemetry-driver-chart";
 import TelemetryTyreStrategyChart from "../TelemetryTyreStrategyChart/telemetry-tyre-strategy-chart";
 import {
@@ -40,6 +51,7 @@ import {
 const defaultMetric = "speed" as const;
 
 function TelemetryScreen() {
+  const dispatch = useDispatch();
   const [activeTab, setActiveTab] = useState("telemetry-history");
   const [selectedDriverNumber, setSelectedDriverNumber] = useState<
     number | null
@@ -56,6 +68,46 @@ function TelemetryScreen() {
     status: telemetryMetadataStatus,
     error: telemetryMetadataError,
   } = useSelector(selectRaceStateTelemetry);
+  const {
+    data: dashboardSnapshot,
+    error: dashboardError,
+    isError: dashboardIsError,
+    isLoading: dashboardIsLoading,
+    isSuccess: dashboardIsSuccess,
+  } = useGetDashboardQuery();
+
+  useEffect(() => {
+    if (dashboardIsLoading && !session && drivers.length === 0) {
+      dispatch(setRaceStateTelemetryLoading());
+      return;
+    }
+
+    if (dashboardIsSuccess && dashboardSnapshot) {
+      dispatch(setRaceStateTelemetryMetadata(buildTelemetryMetadata(dashboardSnapshot)));
+      return;
+    }
+
+    if (dashboardIsError && !session && drivers.length === 0) {
+      dispatch(
+        setRaceStateTelemetryError(
+          resolveRtkQueryError(
+            dashboardError,
+            "Telemetry metadata request failed.",
+          ) ?? "Telemetry metadata request failed.",
+        ),
+      );
+    }
+  }, [
+    dashboardError,
+    dashboardIsError,
+    dashboardIsLoading,
+    dashboardIsSuccess,
+    dashboardSnapshot,
+    dispatch,
+    drivers.length,
+    session,
+  ]);
+
   const leaderboardRows = useMemo(
     () => buildTelemetryDriverRows(drivers),
     [drivers],
@@ -288,7 +340,10 @@ function TelemetryScreen() {
             <TelemetryTyreStrategyChart
               strategy={tyreStrategy}
               isLoading={tyreStrategyLoading}
-              errorMessage={resolveRtkQueryError(tyreStrategyError)}
+              errorMessage={resolveRtkQueryError(
+                tyreStrategyError,
+                "Tyre strategy request failed.",
+              )}
             />
           </StyledTelemetryTabPanel>
         )}
@@ -297,7 +352,7 @@ function TelemetryScreen() {
   );
 }
 
-const resolveRtkQueryError = (error: unknown) => {
+const resolveRtkQueryError = (error: unknown, fallbackMessage: string) => {
   if (!error) {
     return null;
   }
@@ -310,7 +365,21 @@ const resolveRtkQueryError = (error: unknown) => {
     return error.message;
   }
 
-  return "Tyre strategy request failed.";
+  return fallbackMessage;
 };
+
+const buildTelemetryMetadata = (dashboard: RaceDashboard) => ({
+  session: dashboard.session,
+  drivers: dashboard.leaderboard.map((driver) => ({
+    driverNumber: driver.driverNumber,
+    broadcastName: driver.broadcastName,
+    fullName: driver.fullName,
+    tla: driver.tla,
+    teamName: driver.teamName,
+    teamColor: driver.teamColor,
+    position: driver.position,
+    gridPosition: driver.gridPosition,
+  })),
+});
 
 export default TelemetryScreen;

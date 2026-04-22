@@ -46,21 +46,6 @@ public sealed class RaceStateViewFactory
             BuildSessionView(snapshot),
             BuildLeaderboard(snapshot));
 
-    public RaceTelemetryMetadataViewModel BuildTelemetryMetadata(RaceStateSnapshot snapshot)
-        => new(
-            BuildSessionView(snapshot),
-            ComputeLeaderboard(snapshot)
-                .Select(entry => new RaceTelemetryDriverSummaryViewModel(
-                    entry.DriverNumber,
-                    entry.BroadcastName,
-                    entry.FullName,
-                    entry.Tla,
-                    entry.TeamName,
-                    entry.TeamColor,
-                    entry.Position,
-                    entry.GridPosition))
-                .ToArray());
-
     public RaceCurrentStateViewModel BuildCurrentState(RaceStateSnapshot snapshot)
         => new(
             snapshot.SessionId,

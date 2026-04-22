@@ -1,6 +1,5 @@
 import type {
   RaceDashboard,
-  RaceTelemetryMetadata,
   RaceTyreStintStrategy,
 } from "@/features/store/race-state/raceStateTypes";
 import { buildMockRaceDashboardSnapshot } from "@/mocks/dashboard/race-state-dashboard.mock";
@@ -8,24 +7,6 @@ import { baseApi } from "../baseApi";
 
 const useDashboardMocks =
   process.env.NEXT_PUBLIC_USE_DASHBOARD_MOCKS === "true";
-
-const buildMockTelemetryMetadata = (): RaceTelemetryMetadata => {
-  const mockSnapshot = buildMockRaceDashboardSnapshot(0);
-
-  return {
-    session: mockSnapshot.dashboard.session,
-    drivers: mockSnapshot.dashboard.leaderboard.map((driver) => ({
-      driverNumber: driver.driverNumber,
-      broadcastName: driver.broadcastName,
-      fullName: driver.fullName,
-      tla: driver.tla,
-      teamName: driver.teamName,
-      teamColor: driver.teamColor,
-      position: driver.position,
-      gridPosition: driver.gridPosition,
-    })),
-  };
-};
 
 const tyreCompounds = ["MEDIUM", "HARD", "SOFT"] as const;
 
@@ -84,20 +65,14 @@ const buildMockTyreStintStrategy = (
 
 export const raceStateApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    getLeaderboard: builder.query<RaceDashboard["leaderboard"], void>({
-      query: () => "/api/race-state/leaderboard",
-      transformResponse: (response: { drivers?: RaceDashboard["leaderboard"]; Drivers?: RaceDashboard["leaderboard"] }) =>
-        response.drivers ?? response.Drivers ?? [],
-      providesTags: ["RaceState"],
-    }),
-    getTelemetryMetadata: builder.query<RaceTelemetryMetadata, void>({
+    getDashboard: builder.query<RaceDashboard, void>({
       async queryFn(_arg, _api, _extraOptions, fetchWithBQ) {
         if (useDashboardMocks) {
-          return { data: buildMockTelemetryMetadata() };
+          return { data: buildMockRaceDashboardSnapshot(0).dashboard };
         }
 
         const result = await fetchWithBQ({
-          url: "/api/race-state/telemetry/metadata",
+          url: "/api/race-state/dashboard",
           method: "GET",
         });
 
@@ -105,8 +80,14 @@ export const raceStateApi = baseApi.injectEndpoints({
           return { error: result.error };
         }
 
-        return { data: result.data as RaceTelemetryMetadata };
+        return { data: result.data as RaceDashboard };
       },
+      providesTags: ["RaceState"],
+    }),
+    getLeaderboard: builder.query<RaceDashboard["leaderboard"], void>({
+      query: () => "/api/race-state/leaderboard",
+      transformResponse: (response: { drivers?: RaceDashboard["leaderboard"]; Drivers?: RaceDashboard["leaderboard"] }) =>
+        response.drivers ?? response.Drivers ?? [],
       providesTags: ["RaceState"],
     }),
     getTyreStintStrategy: builder.query<RaceTyreStintStrategy, string>({
@@ -135,7 +116,7 @@ export const raceStateApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useGetDashboardQuery,
   useGetLeaderboardQuery,
-  useGetTelemetryMetadataQuery,
   useGetTyreStintStrategyQuery,
 } = raceStateApi;

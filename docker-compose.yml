@@ -46,8 +46,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Docker
       DOTNET_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://+:8080
-    volumes:
-      - ./docker/race-state-data:/data
+    tmpfs:
+      - /data
     restart: unless-stopped
 
   telemetry-analytics-service:
@@ -80,8 +80,8 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
-    volumes:
-      - ./docker/postgres-data:/var/lib/postgresql/data
+    tmpfs:
+      - /var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -101,9 +101,9 @@ services:
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: f1-super-token
     ports:
       - "8086:8086"
-    volumes:
-      - ./docker/influxdb-data:/var/lib/influxdb2
-      - ./docker/influxdb-config:/etc/influxdb2
+    tmpfs:
+      - /var/lib/influxdb2
+      - /etc/influxdb2
     restart: unless-stopped
 
   mosquitto:
@@ -131,7 +131,8 @@ services:
         condition: service_healthy
     volumes:
       - ./helpers/mqtt-capture/capture.sh:/helper/capture.sh:ro
-      - ./docker/mqtt-capture/raw:/capture
+    tmpfs:
+      - /capture
     environment:
       CAPTURE_TOPIC_FILTER: f1/raw/#
       CAPTURE_OUTPUT_DIR: /capture
@@ -146,7 +147,8 @@ services:
         condition: service_healthy
     volumes:
       - ./helpers/mqtt-capture/capture.sh:/helper/capture.sh:ro
-      - ./docker/mqtt-capture/canonical:/capture
+    tmpfs:
+      - /capture
     environment:
       CAPTURE_TOPIC_FILTER: f1/canonical/#
       CAPTURE_OUTPUT_DIR: /capture

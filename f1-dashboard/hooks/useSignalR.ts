@@ -74,7 +74,7 @@ export const useSignalR = (url: string | null, options?: SignalROptions) => {
           withCredentials: false,
         })
         .withAutomaticReconnect([0, 1500, 3000, 5000])
-        .configureLogging(LogLevel.Warning)
+        .configureLogging(LogLevel.None)
         .build();
 
       connectionRef.current = connection;

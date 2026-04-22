@@ -58,9 +58,4 @@ public sealed class RaceStateReadService(IRaceStateStore raceStateStore, RaceSta
         return _viewFactory.BuildDashboard(snapshot);
     }
 
-    public RaceTelemetryMetadataViewModel GetTelemetryMetadata()
-    {
-        var snapshot = _raceStateStore.GetSnapshot();
-        return _viewFactory.BuildTelemetryMetadata(snapshot);
-    }
 }

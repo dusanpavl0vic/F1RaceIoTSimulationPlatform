@@ -9,6 +9,7 @@ import {
 import type {
   RaceCurrentState,
   RaceDashboard,
+  RaceStateSessionView,
   RaceStateWsMessage,
 } from "@/features/store/race-state/raceStateTypes";
 import { setRaceStateTelemetryMetadata } from "@/features/store/race-state/raceStateTelemetrySlice";
@@ -48,6 +49,88 @@ const defaultSignalRUrl =
   resolveLegacySignalRUrl(process.env.NEXT_PUBLIC_WS_URL) ??
   DEFAULT_SIGNALR_URL;
 const useDashboardMocks = process.env.NEXT_PUBLIC_USE_DASHBOARD_MOCKS === "true";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const parseNullableNumber = (value: unknown) => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+};
+
+const resolveLapCountFromCurrentState = (
+  currentState: RaceCurrentState | null,
+) => {
+  if (!currentState || !isRecord(currentState.session)) {
+    return null;
+  }
+
+  const lapCount =
+    currentState.session["lap.count.updated"] ?? currentState.session.lapCount;
+  if (!isRecord(lapCount)) {
+    return null;
+  }
+
+  return {
+    currentLap: parseNullableNumber(lapCount.currentLap ?? lapCount.CurrentLap),
+    totalLaps: parseNullableNumber(lapCount.totalLaps ?? lapCount.TotalLaps),
+  };
+};
+
+const buildFallbackSession = (
+  currentState: RaceCurrentState,
+): RaceStateSessionView => ({
+  sessionId: currentState.sessionId,
+  currentLap: null,
+  totalLaps: null,
+  trackStatusCode: null,
+  trackStatusMessage: null,
+  lastProcessedEventTime: currentState.lastProcessedEventTime,
+  lastProcessedSequence: currentState.lastProcessedSequence,
+  updatedAt: currentState.updatedAt,
+});
+
+const buildEffectiveDashboard = (
+  dashboard: RaceDashboard | null,
+  currentState: RaceCurrentState | null,
+): RaceDashboard | null => {
+  if (!dashboard && !currentState) {
+    return null;
+  }
+
+  const session = dashboard?.session ?? (
+    currentState ? buildFallbackSession(currentState) : null
+  );
+  if (!session) {
+    return null;
+  }
+
+  const lapCount = resolveLapCountFromCurrentState(currentState);
+  const currentLap = lapCount?.currentLap ?? session.currentLap;
+  const totalLaps = lapCount?.totalLaps ?? session.totalLaps;
+
+  return {
+    session: {
+      ...session,
+      currentLap,
+      totalLaps,
+      lastProcessedEventTime:
+        currentState?.lastProcessedEventTime ?? session.lastProcessedEventTime,
+      lastProcessedSequence:
+        currentState?.lastProcessedSequence ?? session.lastProcessedSequence,
+      updatedAt: currentState?.updatedAt ?? session.updatedAt,
+    },
+    leaderboard: currentState?.leaderboard ?? dashboard?.leaderboard ?? [],
+  };
+};
 
 export const useRaceDashboardLive = () => {
   const dispatch = useDispatch();
@@ -124,7 +207,7 @@ export const useRaceDashboardLive = () => {
           if (message.type === RACE_STATE_UPDATED_EVENT) {
             startTransition(() => {
               setLiveDashboard(message.dashboard);
-              setLiveCurrentState(message.currentState);
+              setLiveCurrentState(message.currentState ?? null);
             });
             dispatch(
               setRaceStateTelemetryMetadata({
@@ -149,36 +232,27 @@ export const useRaceDashboardLive = () => {
     },
   });
 
+  const effectiveDashboard = useMemo(
+    () => buildEffectiveDashboard(liveDashboard, liveCurrentState),
+    [liveCurrentState, liveDashboard]
+  );
+
   const sessionCards = useMemo(
-    () => buildSessionCards(liveDashboard?.session),
-    [liveDashboard?.session]
+    () => buildSessionCards(effectiveDashboard?.session),
+    [effectiveDashboard?.session]
   );
 
   const leaderboardRows = useMemo(
     () =>
-      liveCurrentState
-        ? buildRaceDashboardRows({
-          session: liveDashboard?.session ?? {
-            sessionId: liveCurrentState.sessionId,
-            currentLap: null,
-            totalLaps: null,
-            trackStatusCode: null,
-            trackStatusMessage: null,
-            lastProcessedEventTime: liveCurrentState.lastProcessedEventTime,
-            lastProcessedSequence: liveCurrentState.lastProcessedSequence,
-            updatedAt: liveCurrentState.updatedAt,
-          },
-          leaderboard: liveCurrentState.leaderboard,
-        })
-        : liveDashboard
-          ? buildRaceDashboardRows(liveDashboard)
-          : [],
-    [liveCurrentState, liveDashboard]
+      effectiveDashboard
+        ? buildRaceDashboardRows(effectiveDashboard)
+        : [],
+    [effectiveDashboard]
   );
 
   if (useDashboardMocks) {
     return {
-      data: liveDashboard,
+      data: effectiveDashboard,
       currentState: liveCurrentState,
       wsUi,
       sessionCards,
@@ -187,18 +261,18 @@ export const useRaceDashboardLive = () => {
       isError: false,
       isFetching: false,
       error: undefined,
-      refetch: async () => ({ data: liveDashboard }),
+      refetch: async () => ({ data: effectiveDashboard }),
     };
   }
 
   const isLoading =
     wsUi.wsStatus === "idle" ||
     wsUi.wsStatus === "connecting" ||
-    (!liveDashboard && !liveCurrentState && wsUi.wsStatus !== "error");
+    (!effectiveDashboard && wsUi.wsStatus !== "error");
   const isError = wsUi.wsStatus === "error" || wsUi.wsStatus === "closed";
 
   return {
-    data: liveDashboard,
+    data: effectiveDashboard,
     currentState: liveCurrentState,
     wsUi,
     sessionCards,
@@ -207,6 +281,6 @@ export const useRaceDashboardLive = () => {
     isFetching: wsUi.wsStatus === "connecting",
     isError,
     error: isError ? new Error("Race-state SignalR connection is unavailable.") : undefined,
-    refetch: async () => ({ data: liveDashboard }),
+    refetch: async () => ({ data: effectiveDashboard }),
   };
 };

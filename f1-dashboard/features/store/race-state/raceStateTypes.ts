@@ -147,7 +147,7 @@ export type RaceStateBroadcastMessage = {
   type: "race.state.updated";
   sentAt: string;
   dashboard: RaceDashboard;
-  currentState: RaceCurrentState;
+  currentState?: RaceCurrentState;
 };
 
 export type RaceStateWsMessage = RaceStateBroadcastMessage;
