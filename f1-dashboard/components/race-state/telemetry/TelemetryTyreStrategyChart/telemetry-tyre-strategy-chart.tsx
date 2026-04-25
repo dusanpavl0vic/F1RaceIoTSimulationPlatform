@@ -120,7 +120,8 @@ function TelemetryTyreStrategyChart({
             <Fragment key={driver.driverNumber}>
               <StyledTyreStrategyDriver>
                 <StyledTyreStrategyDriverName>
-                  {driver.driverName} #{driver.driverNumber}
+                  {driver.driverName} #{driver.driverNumber} · {driver.stints.length} stint
+                  {driver.stints.length === 1 ? "" : "s"}
                 </StyledTyreStrategyDriverName>
                 <StyledTyreStrategyTeam>
                   {driver.teamName ?? "No team"}
@@ -130,22 +131,26 @@ function TelemetryTyreStrategyChart({
               <StyledTyreStrategyRow>
                 {driver.stints.map((stint) => {
                   const startLap = Math.max(1, stint.startLap);
+                  const endLap = Math.max(
+                    startLap,
+                    stint.endLap || startLap + Math.max(1, stint.lapCount) - 1,
+                  );
                   const lapCount = Math.max(
                     1,
-                    stint.lapCount || stint.endLap - startLap + 1,
+                    stint.lapCount || endLap - startLap + 1,
                   );
+                  const compound = normalizeCompound(stint.compound);
+                  const tyreCondition = stint.tyreIsNew ? "new tyre" : "used tyre";
 
                   return (
                     <StyledTyreStintBlock
                       key={`${driver.driverNumber}-${stint.stintNumber}`}
-                      $compound={normalizeCompound(stint.compound)}
+                      $compound={compound}
                       $start={startLap}
                       $span={lapCount}
-                      title={`${driver.driverName} ${normalizeCompound(stint.compound)} L${startLap}-L${stint.endLap}`}
+                      title={`${driver.driverName} ${compound}, race laps ${startLap}-${endLap}, ${tyreCondition}`}
                     >
-                      <StyledTyreStintLabel>
-                        {normalizeCompound(stint.compound)} {lapCount}L
-                      </StyledTyreStintLabel>
+                      <StyledTyreStintLabel>{compound}</StyledTyreStintLabel>
                     </StyledTyreStintBlock>
                   );
                 })}

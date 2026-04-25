@@ -2,9 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using F1.TelemetryAnalytics.Service.Application.Contracts;
 using F1.TelemetryAnalytics.Service.Application.Models;
-using F1.TelemetryAnalytics.Service.Domain.Models;
 using F1.TelemetryAnalytics.Service.Infrastructure.Configuration;
-using F1.TelemetryAnalytics.Service.Infrastructure.Persistence.Formatting;
 using F1.TelemetryAnalytics.Service.Infrastructure.Persistence.Parsing;
 using Microsoft.Extensions.Options;
 
@@ -18,36 +16,6 @@ public sealed class InfluxTelemetryClient(
     private readonly HttpClient _httpClient = httpClient;
     private readonly InfluxDbOptions _options = influxDbOptions.Value;
     private readonly ILogger<InfluxTelemetryClient> _logger = logger;
-
-    public async Task WriteTelemetrySampleAsync(TelemetrySampleRecord sample, CancellationToken cancellationToken)
-    {
-        if (!_options.Enabled)
-        {
-            return;
-        }
-
-        var line = InfluxLineProtocolFormatter.Format(sample);
-        using var response = await SendWithOptionalAuthRetryAsync(
-            includeAuthorization =>
-            {
-                var request = new HttpRequestMessage(
-                    HttpMethod.Post,
-                    $"{_options.BaseUrl.TrimEnd('/')}/api/v2/write?org={Uri.EscapeDataString(_options.Organization)}&bucket={Uri.EscapeDataString(_options.Bucket)}&precision={Uri.EscapeDataString(_options.WritePrecision)}")
-                {
-                    Content = new StringContent(line, Encoding.UTF8, "text/plain")
-                };
-
-                ApplyAuthorization(request, includeAuthorization);
-                return request;
-            },
-            cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogWarning("InfluxDB write failed with status {StatusCode}. body={Body}", response.StatusCode, body);
-        }
-    }
 
     public async Task<IReadOnlyList<TelemetrySampleDto>> QueryDriverLapTelemetryAsync(
         string sessionId,

@@ -1,0 +1,13 @@
+{
+  "name": "telemetry-database-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "mqtt": "^5.10.4",
+    "pg": "^8.13.1"
+  }
+}

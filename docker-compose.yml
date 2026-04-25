@@ -46,8 +46,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Docker
       DOTNET_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://+:8080
-    tmpfs:
-      - /data
+    volumes:
+      - ./docker/race-state-data:/data
     restart: unless-stopped
 
   telemetry-analytics-service:
@@ -56,8 +56,6 @@ services:
       dockerfile: ./telemetry-analytics-service/Dockerfile
     container_name: f1-telemetry-analytics-service
     depends_on:
-      mosquitto:
-        condition: service_healthy
       postgres:
         condition: service_healthy
       influxdb:
@@ -68,6 +66,37 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Docker
       DOTNET_ENVIRONMENT: Docker
+    restart: unless-stopped
+
+  telemetry-database-service:
+    build:
+      context: .
+      dockerfile: ./telemetry-database-service/Dockerfile
+    container_name: f1-telemetry-database-service
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_started
+    ports:
+      - "8085:8090"
+    environment:
+      SERVICE_PORT: 8090
+      MQTT_ENABLED: "true"
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_TOPICS: f1/canonical/session/info/updated,f1/canonical/session/status/updated,f1/canonical/track/status/updated,f1/canonical/lap/count/updated,f1/canonical/driver/list/updated/+,f1/canonical/timing/driver/updated/+,f1/canonical/timing/app/updated/+,f1/canonical/lap/series/updated/+,f1/canonical/tyres/current/updated/+,f1/canonical/tyres/stint/updated/+,f1/canonical/car/telemetry/updated/+
+      MQTT_CLIENT_ID: f1-telemetry-database-service
+      MQTT_KEEPALIVE_SECONDS: 30
+      POSTGRES_CONNECTION_STRING: Host=postgres;Port=5432;Database=f1_telemetry;Username=f1;Password=f1_password
+      INFLUX_ENABLED: "true"
+      INFLUX_BASE_URL: http://influxdb:8086
+      INFLUX_ORGANIZATION: f1-platform
+      INFLUX_BUCKET: f1-telemetry
+      INFLUX_TOKEN: f1-super-token
+      INFLUX_WRITE_PRECISION: ns
     restart: unless-stopped
 
   postgres:
@@ -131,8 +160,7 @@ services:
         condition: service_healthy
     volumes:
       - ./helpers/mqtt-capture/capture.sh:/helper/capture.sh:ro
-    tmpfs:
-      - /capture
+      - ./docker/mqtt-capture/raw:/capture
     environment:
       CAPTURE_TOPIC_FILTER: f1/raw/#
       CAPTURE_OUTPUT_DIR: /capture
@@ -147,8 +175,7 @@ services:
         condition: service_healthy
     volumes:
       - ./helpers/mqtt-capture/capture.sh:/helper/capture.sh:ro
-    tmpfs:
-      - /capture
+      - ./docker/mqtt-capture/canonical:/capture
     environment:
       CAPTURE_TOPIC_FILTER: f1/canonical/#
       CAPTURE_OUTPUT_DIR: /capture

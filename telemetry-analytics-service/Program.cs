@@ -3,7 +3,6 @@ using F1.TelemetryAnalytics.Service.Application.Services;
 using F1.TelemetryAnalytics.Service.Grpc;
 using F1.TelemetryAnalytics.Service.Infrastructure.Configuration;
 using F1.TelemetryAnalytics.Service.Infrastructure.Persistence;
-using F1.TelemetryAnalytics.Service.Infrastructure.Workers;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -40,20 +39,14 @@ builder.Services.AddCors(options =>
 });
 builder.Services.AddHttpClient<IInfluxTelemetryClient, InfluxTelemetryClient>();
 
-builder.Services.Configure<MqttOptions>(builder.Configuration.GetSection(MqttOptions.SectionName));
 builder.Services.Configure<PostgresOptions>(builder.Configuration.GetSection(PostgresOptions.SectionName));
 builder.Services.Configure<InfluxDbOptions>(builder.Configuration.GetSection(InfluxDbOptions.SectionName));
-builder.Services.Configure<AnalyticsOptions>(builder.Configuration.GetSection(AnalyticsOptions.SectionName));
 
-builder.Services.AddSingleton<AnalyticsStateStore>();
-builder.Services.AddSingleton<TelemetryStreamHub>();
-builder.Services.AddSingleton<TelemetryAnalyticsIngestionService>();
 builder.Services.AddSingleton<IAnalyticsRepository, PostgresAnalyticsRepository>();
 builder.Services.AddSingleton<IAnalyticsQueryService, AnalyticsQueryService>();
-builder.Services.AddSingleton<TelemetryAnalyticsWorker>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<TelemetryAnalyticsWorker>());
 
 var app = builder.Build();
+await app.Services.GetRequiredService<IAnalyticsRepository>().InitializeAsync(CancellationToken.None);
 
 app.UseExceptionHandler(exceptionHandler =>
 {
