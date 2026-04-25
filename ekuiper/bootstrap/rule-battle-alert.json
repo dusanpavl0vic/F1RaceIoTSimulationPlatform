@@ -1,0 +1,15 @@
+{
+  "id": "battle_gap_under_1s",
+  "sql": "SELECT sessionId, driverNumber, payload->timing->IntervalToPositionAhead->Value AS gapLabel, eventTime FROM canonical_timing_gap_stream WHERE eventType = \"timing.driver.updated\" AND regexp_matches(payload->timing->IntervalToPositionAhead->Value, \"^[+]?0\\\\.[0-9]+$\")",
+  "actions": [
+    {
+      "rest": {
+        "url": "http://race-state-service:8080/api/race-state/alerts/battle",
+        "method": "post",
+        "sendSingle": true,
+        "bodyType": "json",
+        "dataTemplate": "{\"sessionId\":\"{{.sessionId}}\",\"driverNumber\":{{.driverNumber}},\"gapLabel\":\"{{.gapLabel}}\",\"eventTime\":\"{{.eventTime}}\"}"
+      }
+    }
+  ]
+}

@@ -4,8 +4,10 @@ import type {
 } from "@/features/store/race-state/raceStateTypes";
 
 export const applyRaceStateMessage = (
-  _currentDashboard: RaceDashboard | null,
+  currentDashboard: RaceDashboard | null,
   message: RaceStateWsMessage
 ): RaceDashboard | null => {
-  return message.dashboard;
+  return message.type === "race.state.updated"
+    ? message.dashboard
+    : currentDashboard;
 };

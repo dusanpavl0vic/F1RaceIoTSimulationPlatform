@@ -32,6 +32,37 @@ services:
       ASPNETCORE_URLS: http://+:8080
     restart: unless-stopped
 
+  ekuiper:
+    image: lfedge/ekuiper:2.0.0
+    container_name: f1-ekuiper
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    ports:
+      - "9081:9081"
+      - "20498:20498"
+    environment:
+      MQTT_SOURCE__DEFAULT__SERVER: tcp://mosquitto:1883
+      KUIPER__BASIC__CONSOLELOG: "true"
+      KUIPER__BASIC__IGNORECASE: "false"
+    volumes:
+      - ./docker/ekuiper/data:/kuiper/data
+      - ./docker/ekuiper/log:/kuiper/log
+    restart: unless-stopped
+
+  ekuiper-init:
+    image: curlimages/curl:8.7.1
+    container_name: f1-ekuiper-init
+    depends_on:
+      ekuiper:
+        condition: service_started
+      race-state-service:
+        condition: service_started
+    volumes:
+      - ./ekuiper/bootstrap:/bootstrap:ro
+    command: ["/bin/sh", "/bootstrap/init-ekuiper.sh"]
+    restart: "no"
+
   race-state-service:
     build:
       context: .

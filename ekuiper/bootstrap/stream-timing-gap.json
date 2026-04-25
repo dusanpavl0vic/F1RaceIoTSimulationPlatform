@@ -1,0 +1,3 @@
+{
+  "sql": "CREATE STREAM canonical_timing_gap_stream () WITH (DATASOURCE=\"f1/canonical/timing/driver/updated/+\", FORMAT=\"json\")"
+}

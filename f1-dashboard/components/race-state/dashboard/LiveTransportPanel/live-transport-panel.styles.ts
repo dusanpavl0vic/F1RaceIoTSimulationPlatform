@@ -9,6 +9,7 @@ export const StyledTransportPaper = styled(Box)`
   border: 1px solid ${({ theme }) => theme.colors.border};
   background-color: ${({ theme }) => theme.colors.panel};
   overflow: hidden;
+  top: 0,
 `;
 
 export const StyledPanelHeader = styled(Box)`
@@ -57,7 +58,7 @@ export const StyledStatLabel = styled(Typography)`
   color: ${({ theme }) => theme.colors.textMuted};
 `;
 
-export const StyledStatusBadge = styled(Box)<{ $tone: "live" | "warning" | "error" | "idle" }>`
+export const StyledStatusBadge = styled(Box) <{ $tone: "live" | "warning" | "error" | "idle" }>`
   min-width: 86px;
   height: 22px;
   padding: 0 8px;

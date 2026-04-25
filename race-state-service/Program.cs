@@ -57,6 +57,7 @@ builder.Services.AddSingleton<RaceStateReadService>();
 builder.Services.AddSingleton<RaceStateAnalyticsQueryHandler>();
 builder.Services.AddSingleton<RaceStateViewFactory>();
 builder.Services.AddSingleton<RaceStateBroadcaster>();
+builder.Services.AddSingleton<RaceBattleAlertService>();
 builder.Services.AddSingleton<TelemetryAnalyticsGateway>();
 builder.Services.AddSingleton<StatePersistenceService>();
 builder.Services.AddSingleton<RaceStateWorker>();

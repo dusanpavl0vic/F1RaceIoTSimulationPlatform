@@ -1,5 +1,6 @@
 using F1.RaceState.Service.Application.Contracts;
 using F1.RaceState.Service.API.Hubs;
+using F1.RaceState.Service.Application.Models;
 using Microsoft.AspNetCore.SignalR;
 
 namespace F1.RaceState.Service.Application.Services;
@@ -28,5 +29,15 @@ public sealed class RaceStateBroadcaster(
         var payload = _viewFactory.BuildBroadcastMessage(snapshot);
         await _hubContext.Clients.All.SendAsync(payload.Type, payload, cancellationToken);
         _logger.LogDebug("Broadcast SignalR race-state update for session {SessionId}.", snapshot.SessionId);
+    }
+
+    public async Task BroadcastBattleAlertAsync(BattleAlertMessage payload, CancellationToken cancellationToken)
+    {
+        await _hubContext.Clients.All.SendAsync(payload.Type, payload, cancellationToken);
+        _logger.LogDebug(
+            "Broadcast SignalR battle alert for session {SessionId}. trailingDriver={DriverNumber}, aheadDriver={AheadDriverNumber}.",
+            payload.SessionId,
+            payload.DriverNumber,
+            payload.AheadDriverNumber);
     }
 }

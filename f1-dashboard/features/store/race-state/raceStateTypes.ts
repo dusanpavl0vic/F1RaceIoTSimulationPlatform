@@ -150,7 +150,21 @@ export type RaceStateBroadcastMessage = {
   currentState?: RaceCurrentState;
 };
 
-export type RaceStateWsMessage = RaceStateBroadcastMessage;
+export type RaceBattleAlertMessage = {
+  type: "battle.alert";
+  sentAt: string;
+  sessionId: string;
+  driverNumber: number;
+  driverLabel: string;
+  aheadDriverNumber: number;
+  aheadDriverLabel: string;
+  battleForPosition: number;
+  gapSeconds: number | null;
+  gapLabel: string;
+  message: string;
+};
+
+export type RaceStateWsMessage = RaceStateBroadcastMessage | RaceBattleAlertMessage;
 
 export type RaceStateTelemetrySample = {
   sessionId: string;
