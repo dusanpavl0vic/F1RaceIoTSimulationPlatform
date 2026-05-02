@@ -99,6 +99,26 @@ services:
       DOTNET_ENVIRONMENT: Docker
     restart: unless-stopped
 
+  telemetry-prediction-service:
+    build:
+      context: .
+      dockerfile: ./telemetry-prediction-service/Dockerfile
+    container_name: f1-telemetry-prediction-service
+    ports:
+      - "8087:8080"
+    environment:
+      APP_NAME: telemetry-prediction-service
+      MODEL_PATH: /models/next_lap_model.joblib
+      DATASET_PATH: /models/training/next_lap_training.csv
+      CANONICAL_DATA_DIR: /data/canonical
+      TRAIN_ON_STARTUP: "false"
+      MIN_TRAINING_ROWS: 40
+      MODEL_RANDOM_STATE: 42
+    volumes:
+      - ./docker/ml-models:/models
+      - ./docker/mqtt-capture/canonical:/data/canonical:ro
+    restart: unless-stopped
+
   telemetry-database-service:
     build:
       context: .
