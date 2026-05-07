@@ -17,15 +17,27 @@ def _parse_bool(value: str | None, default: bool = False) -> bool:
     return default
 
 
+def _parse_csv(value: str | None, default: tuple[str, ...]) -> tuple[str, ...]:
+    if value is None or not value.strip():
+        return default
+
+    parsed = tuple(
+        item.strip()
+        for item in value.split(",")
+        if item.strip()
+    )
+    return parsed or default
+
+
 @dataclass(slots=True)
 class Settings:
     app_name: str
     model_path: Path
     dataset_path: Path
     canonical_data_dir: Path
-    train_on_startup: bool
     min_training_rows: int
     random_state: int
+    cors_allowed_origins: tuple[str, ...]
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -34,7 +46,10 @@ class Settings:
             model_path=Path(os.getenv("MODEL_PATH", "/models/next_lap_model.joblib")),
             dataset_path=Path(os.getenv("DATASET_PATH", "/models/training/next_lap_training.csv")),
             canonical_data_dir=Path(os.getenv("CANONICAL_DATA_DIR", "/data/canonical")),
-            train_on_startup=_parse_bool(os.getenv("TRAIN_ON_STARTUP"), default=False),
             min_training_rows=int(os.getenv("MIN_TRAINING_ROWS", "40")),
             random_state=int(os.getenv("MODEL_RANDOM_STATE", "42")),
+            cors_allowed_origins=_parse_csv(
+                os.getenv("CORS_ALLOWED_ORIGINS"),
+                default=("http://localhost:3000", "http://127.0.0.1:3000"),
+            ),
         )

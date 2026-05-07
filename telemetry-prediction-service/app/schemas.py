@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field
 class HealthResponse(BaseModel):
     service: str
     model_loaded: bool
-    train_on_startup: bool
     model_version: str | None = None
 
 

@@ -24,9 +24,5 @@ Posle toga normalan runtime:
 docker compose up telemetry-prediction-service
 ```
 
-Opcioni demo mode:
-
-- `TRAIN_ON_STARTUP=true`
-- servis ce pri startup-u sam pokusati da napravi dataset i model
-
-To je zgodno za demo, ali nije preporuceno za production runtime.
+Servis vise ne trenira model pri startup-u.
+Model mora unapred da bude istreniran i sacuvan kao `.joblib` artifact pre podizanja runtime kontejnera.

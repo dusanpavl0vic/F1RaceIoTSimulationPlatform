@@ -106,7 +106,7 @@ const buildEffectiveDashboard = (
         currentState?.lastProcessedSequence ?? session.lastProcessedSequence,
       updatedAt: currentState?.updatedAt ?? session.updatedAt,
     },
-    leaderboard: currentState?.leaderboard ?? dashboard?.leaderboard ?? [],
+    leaderboard: dashboard?.leaderboard ?? [],
   };
 };
 

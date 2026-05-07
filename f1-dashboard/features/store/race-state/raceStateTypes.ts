@@ -91,6 +91,70 @@ export type RaceTyreStintStrategy = {
   drivers: RaceTyreStintDriver[];
 };
 
+export type NextLapPredictionFeatures = {
+  driver_number: number;
+  lap_number: number;
+  position: number | null;
+  lap_time_last: number | null;
+  lap_time_best: number | null;
+  gap_to_leader: number | null;
+  gap_to_ahead: number | null;
+  tyre_compound: string | null;
+  tyre_is_new: boolean | null;
+  tyre_laps_on_set: number | null;
+  in_pit: boolean | null;
+};
+
+export type NextLapPredictionBatchRequest = {
+  items: NextLapPredictionFeatures[];
+};
+
+export type NextLapPredictionRequest = {
+  features: NextLapPredictionFeatures;
+};
+
+export type NextLapPredictionResponse = {
+  predicted_next_lap_time: number;
+  model_version: string | null;
+};
+
+export type NextLapPredictionBatchResponse = {
+  predictions: Array<{
+    predicted_next_lap_time: number;
+    model_version: string | null;
+  }>;
+  model_version: string | null;
+};
+
+export type RaceNextLapPredictionDriver = {
+  driverNumber: number;
+  driverName: string;
+  teamName: string | null;
+  teamColor: string | null;
+  position: number | null;
+  completedLaps: number | null;
+  predictedForLap: number | null;
+  predictedNextLapTime: number | null;
+  lastLapTimeActual: number | null;
+  bestLapTimeActual: number | null;
+};
+
+export type RaceNextLapPredictions = {
+  sessionId: string;
+  triggerLap: number | null;
+  modelVersion: string | null;
+  generatedAt: string;
+  drivers: RaceNextLapPredictionDriver[];
+};
+
+export type PredictionComparisonEntry = {
+  lapNumber: number;
+  predictedLapTime: number;
+  actualLapTime: number;
+  deltaToActual: number;
+  accuracyPercentage: number;
+};
+
 export type RaceCurrentDriverState = {
   driverNumber: number;
   broadcastName: string | null;
@@ -135,7 +199,6 @@ export type RaceCurrentState = {
   lastProcessedSequence: number | null;
   session: Record<string, unknown>;
   drivers: Record<string, RaceCurrentDriverState>;
-  leaderboard: RaceLeaderboardEntry[];
 };
 
 export type SessionCard = {

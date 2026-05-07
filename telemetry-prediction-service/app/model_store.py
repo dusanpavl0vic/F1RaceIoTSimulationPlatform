@@ -9,7 +9,6 @@ import pandas as pd
 
 from app.config import Settings
 from app.model_contract import FEATURE_COLUMNS
-from app.training.train import train_model_from_sources
 
 logger = logging.getLogger(__name__)
 
@@ -30,17 +29,6 @@ class ModelStore:
         return self._bundle.get("metadata")
 
     def initialize(self) -> None:
-        if self._settings.train_on_startup:
-            logger.info("TRAIN_ON_STARTUP=true. Training model before loading it.")
-            train_model_from_sources(
-                canonical_dir=self._settings.canonical_data_dir if self._settings.canonical_data_dir.exists() else None,
-                dataset_path=self._settings.dataset_path if self._settings.dataset_path.exists() else None,
-                output_model_path=self._settings.model_path,
-                output_dataset_path=self._settings.dataset_path,
-                min_training_rows=self._settings.min_training_rows,
-                random_state=self._settings.random_state,
-            )
-
         if not self._settings.model_path.exists():
             logger.warning("Prediction model file does not exist at %s.", self._settings.model_path)
             return

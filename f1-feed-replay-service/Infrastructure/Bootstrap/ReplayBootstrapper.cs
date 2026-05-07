@@ -35,12 +35,12 @@ public sealed class ReplayBootstrapper(
         var storageRootPath = ResolveStorageRootPath();
         Directory.CreateDirectory(storageRootPath);
 
-        var resolvedIndexUrl = ResolveIndexUrl(command.IndexUrl, command.DownloadFeeds);
+        var resolvedIndexUrl = ResolveIndexUrl(command.DownloadFeeds);
         var resolvedSessionId = ResolveSessionId(command.SessionId, resolvedIndexUrl);
         var sessionStoragePath = Path.Combine(storageRootPath, resolvedSessionId);
         Directory.CreateDirectory(sessionStoragePath);
 
-        var resolvedConfigurationPath = ResolveConfigurationPath(command.ConfigurationPath, sessionStoragePath);
+        var resolvedConfigurationPath = ResolveConfigurationPath(sessionStoragePath);
         var downloadedFeeds = new List<string>();
         var skippedFeeds = new List<string>();
         var configuredFeedCount = 0;
@@ -95,7 +95,7 @@ public sealed class ReplayBootstrapper(
                 await _replayCoordinator.StopAsync(new StopReplayCommand(), cancellationToken);
             }
 
-            await _replayCoordinator.LoadAsync(new LoadReplayCommand(resolvedConfigurationPath), cancellationToken);
+            await _replayCoordinator.LoadAsync(new LoadReplayCommand(), cancellationToken);
             loadedReplay = true;
         }
 
@@ -219,11 +219,9 @@ public sealed class ReplayBootstrapper(
             ? _bootstrapOptions.StorageRootPath
             : Path.GetFullPath(Path.Combine(_hostEnvironment.ContentRootPath, _bootstrapOptions.StorageRootPath));
 
-    private string ResolveConfigurationPath(string? configurationPath, string sessionStoragePath)
+    private string ResolveConfigurationPath(string sessionStoragePath)
     {
-        var candidate = string.IsNullOrWhiteSpace(configurationPath)
-            ? Path.Combine(sessionStoragePath, _bootstrapOptions.GeneratedReplayConfigurationFileName)
-            : configurationPath;
+        var candidate = Path.Combine(sessionStoragePath, _bootstrapOptions.GeneratedReplayConfigurationFileName);
 
         if (string.IsNullOrWhiteSpace(candidate))
         {
@@ -240,11 +238,9 @@ public sealed class ReplayBootstrapper(
             : Path.GetFullPath(Path.Combine(_hostEnvironment.ContentRootPath, candidate));
     }
 
-    private string ResolveIndexUrl(string? indexUrl, bool requireValue)
+    private string ResolveIndexUrl(bool requireValue)
     {
-        var candidate = string.IsNullOrWhiteSpace(indexUrl)
-            ? _bootstrapOptions.IndexUrl
-            : indexUrl;
+        var candidate = _bootstrapOptions.IndexUrl;
 
         if (requireValue && string.IsNullOrWhiteSpace(candidate))
         {

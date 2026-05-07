@@ -229,15 +229,14 @@ export function buildMockRaceDashboardSnapshot(step = 0): MockSnapshot {
     lastProcessedEventTime,
     lastProcessedSequence: sequence,
     session: {
-      currentLap,
-      totalLaps,
-      trackStatusCode: "1",
-      trackStatusMessage: "All clear",
+      "lap.count.updated": {
+        currentLap,
+        totalLaps,
+      },
     },
     drivers: Object.fromEntries(
       leaderboard.map((entry) => [String(entry.driverNumber), buildCurrentDriverState(entry)])
     ),
-    leaderboard,
   };
 
   const dashboard: RaceDashboard = {

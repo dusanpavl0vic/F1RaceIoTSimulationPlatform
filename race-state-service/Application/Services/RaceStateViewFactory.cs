@@ -53,8 +53,7 @@ public sealed class RaceStateViewFactory
             snapshot.LastProcessedEventTime,
             snapshot.LastProcessedSequence,
             BuildCurrentSessionState(snapshot),
-            BuildDriverFeedState(snapshot),
-            BuildLeaderboard(snapshot));
+            BuildDriverFeedState(snapshot));
 
     public RaceStateBroadcastMessage BuildBroadcastMessage(RaceStateSnapshot snapshot)
         => new(
@@ -78,13 +77,6 @@ public sealed class RaceStateViewFactory
     private static JsonObject BuildCurrentSessionState(RaceStateSnapshot snapshot)
         => new()
         {
-            ["sessionId"] = snapshot.SessionId,
-            ["session.info.updated"] = snapshot.SessionInfo?.DeepClone(),
-            ["track.status.updated"] = new JsonObject
-            {
-                ["status"] = snapshot.TrackStatusCode,
-                ["message"] = snapshot.TrackStatusMessage
-            },
             ["lap.count.updated"] = new JsonObject
             {
                 ["currentLap"] = snapshot.CurrentLap,

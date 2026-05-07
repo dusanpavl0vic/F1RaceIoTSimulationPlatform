@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings
 from app.model_store import ModelStore
@@ -31,6 +32,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+allow_origins = (
+    ["*"]
+    if "*" in settings.cors_allowed_origins
+    else list(settings.cors_allowed_origins)
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allow_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 def _current_model_version() -> str | None:
     metadata = model_store.metadata or {}
@@ -42,7 +57,6 @@ async def health() -> HealthResponse:
     return HealthResponse(
         service=settings.app_name,
         model_loaded=model_store.model_loaded,
-        train_on_startup=settings.train_on_startup,
         model_version=_current_model_version(),
     )
 

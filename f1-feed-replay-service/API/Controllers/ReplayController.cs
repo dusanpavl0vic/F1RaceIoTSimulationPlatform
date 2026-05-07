@@ -19,9 +19,9 @@ public sealed class ReplayController(
     }
 
     [HttpPost("load")]
-    public async Task<IActionResult> LoadAsync([FromBody] LoadReplayRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> LoadAsync(CancellationToken cancellationToken)
     {
-        var status = await replayApplicationService.LoadAsync(ReplayRequestMapper.Map(request), cancellationToken);
+        var status = await replayApplicationService.LoadAsync(new Application.Commands.LoadReplayCommand(), cancellationToken);
         return Ok(status);
     }
 

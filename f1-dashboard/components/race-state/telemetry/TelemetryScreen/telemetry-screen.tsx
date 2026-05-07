@@ -1,6 +1,7 @@
 "use client";
 
 import { DashboardHero } from "@/components/race-state/dashboard/DashboardHero/dashboard-hero";
+import TelemetryPredictionPanel from "@/components/race-state/telemetry/TelemetryPredictionPanel/telemetry-prediction-panel";
 import {
   useGetDashboardQuery,
   useGetTyreStintStrategyQuery,
@@ -20,6 +21,7 @@ import {
   telemetryMetricOptions,
   type TelemetryMetricKey,
 } from "@/helpers/telemetryStream";
+import { useNextLapPredictions } from "@/hooks/useNextLapPredictions";
 import { useTelemetryLapData } from "@/hooks/useTelemetryLapData";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { Box, CircularProgress, Typography } from "@mui/material";
@@ -61,6 +63,8 @@ function TelemetryScreen() {
   );
   const [selectedMetric, setSelectedMetric] =
     useState<TelemetryMetricKey>(defaultMetric);
+  const [selectedPredictionDriverNumber, setSelectedPredictionDriverNumber] =
+    useState<number | null>(null);
 
   const {
     drivers,
@@ -174,6 +178,27 @@ function TelemetryScreen() {
   } = useGetTyreStintStrategyQuery(
     activeTab === "tyre-strategy" && sessionId ? sessionId : skipToken,
   );
+  const {
+    predictionSnapshot,
+    comparisonHistory,
+    predictionError,
+    isLoading: predictionLoading,
+  } = useNextLapPredictions({
+    selectedDriverNumber: selectedPredictionDriverNumber,
+  });
+
+  useEffect(() => {
+    if (
+      selectedPredictionDriverNumber &&
+      leaderboardRows.some(
+        (driver) => driver.driverNumber === selectedPredictionDriverNumber,
+      )
+    ) {
+      return;
+    }
+
+    setSelectedPredictionDriverNumber(leaderboardRows[0]?.driverNumber ?? null);
+  }, [leaderboardRows, selectedPredictionDriverNumber]);
 
   if (
     telemetryMetadataStatus === "loading" ||
@@ -211,6 +236,10 @@ function TelemetryScreen() {
           <StyledTelemetryPageTab
             value="telemetry-history"
             label="TELEMETRY HISTORY"
+          />
+          <StyledTelemetryPageTab
+            value="next-lap-prediction"
+            label="NEXT LAP PREDICTION"
           />
           <StyledTelemetryPageTab
             value="tyre-strategy"
@@ -327,6 +356,44 @@ function TelemetryScreen() {
           </StyledTelemetryTabPanel>
         )}
 
+        {activeTab === "next-lap-prediction" && (
+          <StyledTelemetryTabPanel>
+            <StyledTelemetryPanelIntro>
+              <Box>
+                <StyledTelemetryPanelTitle>
+                  DIRECT MODEL PREDICTION FEED
+                </StyledTelemetryPanelTitle>
+              </Box>
+            </StyledTelemetryPanelIntro>
+
+            <StyledTelemetryFilters>
+              <StyledTelemetryDriverTabs
+                value={selectedPredictionDriverNumber ?? false}
+                onChange={(_, nextValue) =>
+                  setSelectedPredictionDriverNumber(Number(nextValue))
+                }
+                variant="scrollable"
+                scrollButtons="auto"
+              >
+                {leaderboardRows.map((driver: RaceDashboardDriverRow) => (
+                  <StyledTelemetryDriverTab
+                    key={driver.driverNumber}
+                    value={driver.driverNumber}
+                    label={`${driver.tla ?? driver.driverLabel} #${driver.driverNumber}`}
+                  />
+                ))}
+              </StyledTelemetryDriverTabs>
+            </StyledTelemetryFilters>
+
+            <TelemetryPredictionPanel
+              predictionSnapshot={predictionSnapshot}
+              isLoading={predictionLoading}
+              errorMessage={predictionError}
+              comparisonHistory={comparisonHistory}
+            />
+          </StyledTelemetryTabPanel>
+        )}
+
         {activeTab === "tyre-strategy" && (
           <StyledTelemetryTabPanel>
             <StyledTelemetryPanelIntro>
@@ -358,7 +425,7 @@ const resolveRtkQueryError = (error: unknown, fallbackMessage: string) => {
   }
 
   if (typeof error === "object" && error !== null && "status" in error) {
-    return `Tyre strategy API returned ${String(error.status)}.`;
+    return `${fallbackMessage} API returned ${String(error.status)}.`;
   }
 
   if (error instanceof Error) {

@@ -27,6 +27,7 @@ def train_model_from_sources(
     output_dataset_path: Path | None,
     min_training_rows: int,
     random_state: int,
+    train_split: float,
 ) -> dict[str, Any]:
     dataset = _load_or_build_dataset(
         canonical_dir=canonical_dir,
@@ -56,7 +57,10 @@ def train_model_from_sources(
         na_position="last",
     ).reset_index(drop=True)
 
-    split_index = max(int(len(dataset) * 0.8), 1)
+    if not 0 < train_split < 1:
+        raise ValueError("train_split must be between 0 and 1.")
+
+    split_index = max(int(len(dataset) * train_split), 1)
     if split_index >= len(dataset):
         split_index = len(dataset) - 1
 
@@ -155,6 +159,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dataset", type=Path, default=None, help="Optional output CSV dataset path.")
     parser.add_argument("--min-training-rows", type=int, default=40)
     parser.add_argument("--random-state", type=int, default=42)
+    parser.add_argument("--train-split", type=float, default=0.8, help="Fraction of rows used for training, e.g. 0.5.")
     return parser
 
 
@@ -169,6 +174,7 @@ def main() -> None:
         output_dataset_path=args.output_dataset,
         min_training_rows=args.min_training_rows,
         random_state=args.random_state,
+        train_split=args.train_split,
     )
     print(json.dumps(metadata, indent=2))
 

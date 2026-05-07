@@ -48,7 +48,7 @@ public sealed class ReplayCoordinator(
     {
         EnsureNotRunning();
 
-        var configuration = await _configurationLoader.LoadAsync(command.ConfigurationPath ?? string.Empty, cancellationToken);
+        var configuration = await _configurationLoader.LoadAsync(string.Empty, cancellationToken);
         var parsedEvents = new List<ReplayEvent>();
         var activeFeeds = configuration.Feeds
             .Where(feed => !_excludedFeeds.Contains(feed.Name))
@@ -135,7 +135,7 @@ public sealed class ReplayCoordinator(
     {
         if (GetStatus().SessionId is null)
         {
-            await LoadAsync(new LoadReplayCommand(null), cancellationToken);
+            await LoadAsync(new LoadReplayCommand(), cancellationToken);
         }
 
         ReplaySession session;

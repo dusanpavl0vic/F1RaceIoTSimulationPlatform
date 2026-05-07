@@ -8,5 +8,4 @@ public sealed record RaceCurrentStateViewModel(
     DateTimeOffset? LastProcessedEventTime,
     long? LastProcessedSequence,
     JsonObject Session,
-    JsonObject Drivers,
-    IReadOnlyList<RaceLeaderboardEntryModel> Leaderboard);
+    JsonObject Drivers);

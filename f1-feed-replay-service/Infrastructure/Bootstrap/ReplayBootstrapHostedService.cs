@@ -39,8 +39,6 @@ public sealed class ReplayBootstrapHostedService(
 
         var result = await _replayBootstrapper.BootstrapAsync(
             new BootstrapReplayCommand(
-                indexUrl,
-                null,
                 _configuration["ReplayBootstrap:SessionId"],
                 null,
                 downloadFeeds,
