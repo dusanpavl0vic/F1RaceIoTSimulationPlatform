@@ -2,19 +2,19 @@
 
 import { DashboardHero } from "@/components/race-state/dashboard/DashboardHero/dashboard-hero";
 import TelemetryPredictionPanel from "@/components/race-state/telemetry/TelemetryPredictionPanel/telemetry-prediction-panel";
+import { GlobalBlockingLoader } from "@/components/shared/GlobalBlockingLoader/global-blocking-loader";
 import {
-  useGetDashboardQuery,
   useGetTyreStintStrategyQuery,
 } from "@/features/store/race-state/raceStateApi";
 import {
   selectRaceStateTelemetry,
-  setRaceStateTelemetryError,
   setRaceStateTelemetryLoading,
   setRaceStateTelemetryMetadata,
 } from "@/features/store/race-state/raceStateTelemetrySlice";
+import { selectRaceStateLiveCurrentState } from "@/features/store/race-state/raceStateLiveSlice";
 import type {
-  RaceDashboard,
   RaceDashboardDriverRow,
+  RaceCurrentState,
 } from "@/features/store/race-state/raceStateTypes";
 import { buildTelemetryDriverRows } from "@/helpers/telemetryDrivers";
 import {
@@ -24,7 +24,7 @@ import {
 import { useNextLapPredictions } from "@/hooks/useNextLapPredictions";
 import { useTelemetryLapData } from "@/hooks/useTelemetryLapData";
 import { skipToken } from "@reduxjs/toolkit/query";
-import { Box, CircularProgress, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import TelemetryDriverChart from "../TelemetryDriverChart/telemetry-driver-chart";
@@ -72,49 +72,20 @@ function TelemetryScreen() {
     status: telemetryMetadataStatus,
     error: telemetryMetadataError,
   } = useSelector(selectRaceStateTelemetry);
-  const {
-    data: dashboardSnapshot,
-    error: dashboardError,
-    isError: dashboardIsError,
-    isLoading: dashboardIsLoading,
-    isSuccess: dashboardIsSuccess,
-  } = useGetDashboardQuery();
+  const liveCurrentState = useSelector(selectRaceStateLiveCurrentState);
 
   useEffect(() => {
-    if (dashboardIsLoading && !session && drivers.length === 0) {
+    if (!liveCurrentState) {
       dispatch(setRaceStateTelemetryLoading());
       return;
     }
 
-    if (dashboardIsSuccess && dashboardSnapshot) {
-      dispatch(setRaceStateTelemetryMetadata(buildTelemetryMetadata(dashboardSnapshot)));
-      return;
-    }
-
-    if (dashboardIsError && !session && drivers.length === 0) {
-      dispatch(
-        setRaceStateTelemetryError(
-          resolveRtkQueryError(
-            dashboardError,
-            "Telemetry metadata request failed.",
-          ) ?? "Telemetry metadata request failed.",
-        ),
-      );
-    }
-  }, [
-    dashboardError,
-    dashboardIsError,
-    dashboardIsLoading,
-    dashboardIsSuccess,
-    dashboardSnapshot,
-    dispatch,
-    drivers.length,
-    session,
-  ]);
+    dispatch(setRaceStateTelemetryMetadata(buildTelemetryMetadata(liveCurrentState)));
+  }, [dispatch, liveCurrentState]);
 
   const leaderboardRows = useMemo(
-    () => buildTelemetryDriverRows(drivers),
-    [drivers],
+    () => buildTelemetryDriverRows(drivers, liveCurrentState),
+    [drivers, liveCurrentState],
   );
   const sessionId = session?.sessionId ?? null;
   const selectedDriver = useMemo(
@@ -179,12 +150,19 @@ function TelemetryScreen() {
     activeTab === "tyre-strategy" && sessionId ? sessionId : skipToken,
   );
   const {
-    predictionSnapshot,
+    basisSnapshot,
+    pendingPrediction,
     comparisonHistory,
     predictionError,
-    isLoading: predictionLoading,
+    status: predictionStatus,
+    statusMessage: predictionStatusMessage,
+    isRefreshingBasis: predictionBasisLoading,
+    isPredicting,
+    loadBasisSnapshot,
+    runPrediction,
   } = useNextLapPredictions({
     selectedDriverNumber: selectedPredictionDriverNumber,
+    enabled: activeTab === "next-lap-prediction",
   });
 
   useEffect(() => {
@@ -206,8 +184,7 @@ function TelemetryScreen() {
   ) {
     return (
       <StyledTelemetryShell>
-        <CircularProgress size={24} />
-        <Typography>Loading telemetry history...</Typography>
+        <GlobalBlockingLoader open label="LOADING TELEMETRY HISTORY..." />
       </StyledTelemetryShell>
     );
   }
@@ -226,6 +203,10 @@ function TelemetryScreen() {
 
   return (
     <StyledTelemetryShell>
+      <GlobalBlockingLoader
+        open={activeTab === "next-lap-prediction" && (predictionBasisLoading || isPredicting)}
+        label={predictionBasisLoading ? "LOADING DRIVER PREDICTION DATA..." : "RUNNING NEXT LAP PREDICTION..."}
+      />
       <DashboardHero session={session} />
 
       <StyledTelemetryTabsShell>
@@ -361,7 +342,7 @@ function TelemetryScreen() {
             <StyledTelemetryPanelIntro>
               <Box>
                 <StyledTelemetryPanelTitle>
-                  DIRECT MODEL PREDICTION FEED
+                  NEXT LAP FORECAST WORKBENCH
                 </StyledTelemetryPanelTitle>
               </Box>
             </StyledTelemetryPanelIntro>
@@ -386,10 +367,16 @@ function TelemetryScreen() {
             </StyledTelemetryFilters>
 
             <TelemetryPredictionPanel
-              predictionSnapshot={predictionSnapshot}
-              isLoading={predictionLoading}
+              basisSnapshot={basisSnapshot}
+              pendingPrediction={pendingPrediction}
+              status={predictionStatus}
+              statusMessage={predictionStatusMessage}
+              isRefreshingBasis={predictionBasisLoading}
+              isPredicting={isPredicting}
               errorMessage={predictionError}
               comparisonHistory={comparisonHistory}
+              onLoadBasisSnapshot={loadBasisSnapshot}
+              onRunPrediction={runPrediction}
             />
           </StyledTelemetryTabPanel>
         )}
@@ -435,18 +422,41 @@ const resolveRtkQueryError = (error: unknown, fallbackMessage: string) => {
   return fallbackMessage;
 };
 
-const buildTelemetryMetadata = (dashboard: RaceDashboard) => ({
-  session: dashboard.session,
-  drivers: dashboard.leaderboard.map((driver) => ({
-    driverNumber: driver.driverNumber,
-    broadcastName: driver.broadcastName,
-    fullName: driver.fullName,
-    tla: driver.tla,
-    teamName: driver.teamName,
-    teamColor: driver.teamColor,
-    position: driver.position,
-    gridPosition: driver.gridPosition,
-  })),
-});
+const buildTelemetryMetadata = (currentState: RaceCurrentState) => {
+  const lapCount = currentState.session["lap.count.updated"] as
+    | { currentLap?: number; totalLaps?: number; CurrentLap?: number; TotalLaps?: number }
+    | undefined;
+
+  return {
+    session: {
+      sessionId: currentState.sessionId,
+      currentLap:
+        lapCount?.currentLap ??
+        lapCount?.CurrentLap ??
+        null,
+      totalLaps:
+        lapCount?.totalLaps ??
+        lapCount?.TotalLaps ??
+        null,
+      trackStatusCode: null,
+      trackStatusMessage: null,
+      lastProcessedEventTime: currentState.lastProcessedEventTime,
+      lastProcessedSequence: currentState.lastProcessedSequence,
+      updatedAt: currentState.updatedAt,
+    },
+    drivers: Object.values(currentState.drivers)
+      .sort((left, right) => left.driverNumber - right.driverNumber)
+      .map((driver) => ({
+        driverNumber: driver.driverNumber,
+        broadcastName: driver.broadcastName,
+        fullName: driver.fullName,
+        tla: driver.tla,
+        teamName: driver.team.name,
+        teamColor: driver.team.color,
+        position: driver.leaderboard.position,
+        gridPosition: driver.leaderboard.gridPosition,
+      })),
+  };
+};
 
 export default TelemetryScreen;

@@ -1,11 +1,12 @@
 "use client";
 
 import type {
+  DriverPredictionFeaturesResponse,
+  NextLapPredictionCycle,
   NextLapPredictionFeatures,
   NextLapPredictionRequest,
   RaceCurrentDriverState,
   RaceCurrentState,
-  RaceNextLapPredictionDriver,
 } from "@/features/store/race-state/raceStateTypes";
 
 const normalizeText = (value: string | null | undefined) => {
@@ -61,11 +62,11 @@ const resolveCompletedLaps = (
   triggerLap: number | null,
 ) => {
   if (
-    typeof driver.leaderboard.lapsCompleted === "number" &&
-    Number.isFinite(driver.leaderboard.lapsCompleted) &&
-    driver.leaderboard.lapsCompleted > 0
+    typeof driver.prediction.lastCompletedLapNumber === "number" &&
+    Number.isFinite(driver.prediction.lastCompletedLapNumber) &&
+    driver.prediction.lastCompletedLapNumber > 0
   ) {
-    return driver.leaderboard.lapsCompleted;
+    return driver.prediction.lastCompletedLapNumber;
   }
 
   if (triggerLap && triggerLap > 1) {
@@ -96,7 +97,9 @@ export const buildNextLapPredictionFeature = (
   }
 
   const lapNumber = resolveCompletedLaps(driver, triggerLap);
-  const lapTimeLast = parseLapTimeSeconds(driver.leaderboard.lastLapTime);
+  const lapTimeLast =
+    driver.prediction.lastCompletedLapTimeSeconds ??
+    parseLapTimeSeconds(driver.leaderboard.lastLapTime);
   if (!lapNumber || !lapTimeLast) {
     return null;
   }
@@ -107,6 +110,8 @@ export const buildNextLapPredictionFeature = (
     position: driver.leaderboard.position,
     lap_time_last: lapTimeLast,
     lap_time_best: parseLapTimeSeconds(driver.leaderboard.bestLapTime),
+    lap_time_avg_last_3: driver.prediction.lapTimeAvgLast3 ?? lapTimeLast,
+    lap_time_avg_last_5: driver.prediction.lapTimeAvgLast5 ?? lapTimeLast,
     gap_to_leader: parseGapSeconds(driver.leaderboard.gapToLeader),
     gap_to_ahead: parseGapSeconds(driver.leaderboard.intervalToPositionAhead),
     tyre_compound: driver.tyres.compound,
@@ -134,36 +139,45 @@ export const buildNextLapPredictionRequest = (
   return features ? { features } : null;
 };
 
-const resolveDriverName = (driver: RaceCurrentDriverState) =>
+export const resolvePredictionDriverName = (driver: RaceCurrentDriverState) =>
   driver.tla ??
   driver.broadcastName ??
   driver.fullName ??
   `#${driver.driverNumber}`;
 
-export const buildPredictionSnapshotDriver = (
+export const buildPredictionCycle = (
   currentState: RaceCurrentState | null,
+  basisSnapshot: DriverPredictionFeaturesResponse,
   features: NextLapPredictionFeatures,
-  predictedLapTime: number | null,
-): RaceNextLapPredictionDriver | null => {
-  if (!currentState) {
+  predictedLapTime: number,
+  modelVersion: string | null,
+): NextLapPredictionCycle | null => {
+  if (!currentState || basisSnapshot.lastCompletedLapNumber === null) {
     return null;
   }
 
   const driver = currentState.drivers[String(features.driver_number)];
+
+  const basisLapNumber = basisSnapshot.lastCompletedLapNumber;
+  const generatedAt = new Date().toISOString();
+
   return {
     driverNumber: features.driver_number,
-    driverName: driver ? resolveDriverName(driver) : `#${features.driver_number}`,
+    driverName: driver ? resolvePredictionDriverName(driver) : basisSnapshot.driverName,
     teamName: driver?.team.name ?? null,
     teamColor: driver?.team.color ?? null,
     position: features.position,
-    completedLaps: features.lap_number,
-    predictedForLap: features.lap_number + 1,
+    basisLapNumber,
+    predictedForLap: basisLapNumber + 1,
+    basisLapTime: basisSnapshot.lastCompletedLapTimeSeconds ?? features.lap_time_last,
+    bestLapTime: features.lap_time_best,
+    averageLast3: basisSnapshot.lapTimeAvgLast3 ?? features.lap_time_avg_last_3,
+    averageLast5: basisSnapshot.lapTimeAvgLast5 ?? features.lap_time_avg_last_5,
     predictedNextLapTime: predictedLapTime,
-    lastLapTimeActual: driver
-      ? parseLapTimeSeconds(driver.leaderboard.lastLapTime)
-      : features.lap_time_last,
-    bestLapTimeActual: driver
-      ? parseLapTimeSeconds(driver.leaderboard.bestLapTime)
-      : features.lap_time_best,
+    modelVersion,
+    generatedAt,
+    actualNextLapTime: null,
+    deltaToActual: null,
+    accuracyPercentage: null,
   };
 };

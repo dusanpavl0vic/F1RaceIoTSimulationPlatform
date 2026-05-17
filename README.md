@@ -41,3 +41,13 @@ docker compose up --build
 ```
 
 Posle toga servis slusa na `http://localhost:8080`.
+
+## Architecture documentation
+
+- [Architecture overview](./docs/architecture/README.md)
+- [System context](./docs/architecture/system-context.md)
+- [Container architecture](./docs/architecture/container-architecture.md)
+- [Docker Compose architecture](./docs/architecture/docker-compose-architecture.md)
+- [Communication flow](./docs/architecture/communication-flow.md)
+- [Health checks](./docs/architecture/health-checks.md)
+- [Architecture decisions](./docs/architecture/architecture-decisions.md)

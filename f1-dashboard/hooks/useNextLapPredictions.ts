@@ -1,15 +1,18 @@
 "use client";
 
-import { usePredictNextLapMutation } from "@/features/store/race-state/raceStateApi";
+import {
+  useGetDriverPredictionFeaturesMutation,
+  usePredictNextLapMutation,
+} from "@/features/store/race-state/raceStateApi";
 import { selectRaceStateLiveCurrentState } from "@/features/store/race-state/raceStateLiveSlice";
-import { selectRaceStateTelemetry } from "@/features/store/race-state/raceStateTelemetrySlice";
 import type {
+  DriverPredictionFeaturesResponse,
+  NextLapPredictionCycle,
   PredictionComparisonEntry,
-  RaceNextLapPredictions,
+  PredictionWorkflowStatus,
 } from "@/features/store/race-state/raceStateTypes";
 import {
-  buildNextLapPredictionRequest,
-  buildPredictionSnapshotDriver,
+  buildPredictionCycle,
   calculatePredictionAccuracyPercentage,
 } from "@/helpers/nextLapPrediction";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -17,168 +20,246 @@ import { useSelector } from "react-redux";
 
 type UseNextLapPredictionsOptions = {
   selectedDriverNumber: number | null;
+  enabled: boolean;
+};
+
+type UseNextLapPredictionsResult = {
+  basisSnapshot: DriverPredictionFeaturesResponse | null;
+  pendingPrediction: NextLapPredictionCycle | null;
+  comparisonHistory: PredictionComparisonEntry[];
+  predictionError: string | null;
+  status: PredictionWorkflowStatus;
+  statusMessage: string;
+  isRefreshingBasis: boolean;
+  isPredicting: boolean;
+  loadBasisSnapshot: () => Promise<void>;
+  runPrediction: () => Promise<void>;
 };
 
 export const useNextLapPredictions = ({
   selectedDriverNumber,
-}: UseNextLapPredictionsOptions) => {
+  enabled,
+}: UseNextLapPredictionsOptions): UseNextLapPredictionsResult => {
   const currentState = useSelector(selectRaceStateLiveCurrentState);
-  const { session } = useSelector(selectRaceStateTelemetry);
-  const currentLap = session?.currentLap ?? null;
-  const sessionId = session?.sessionId ?? currentState?.sessionId ?? null;
-  const requestPayload = useMemo(
-    () =>
-      buildNextLapPredictionRequest(
-        currentState,
-        selectedDriverNumber,
-        currentLap,
-      ),
-    [currentLap, currentState, selectedDriverNumber],
-  );
+  const sessionId = currentState?.sessionId ?? null;
+  const selectedDriver = useMemo(() => {
+    if (!currentState || !selectedDriverNumber) {
+      return null;
+    }
 
+    return currentState.drivers[String(selectedDriverNumber)] ?? null;
+  }, [currentState, selectedDriverNumber]);
+  const completedLapNumber = selectedDriver?.prediction.lastCompletedLapNumber ?? null;
+  const completedLapTime = selectedDriver?.prediction.lastCompletedLapTimeSeconds ?? null;
+
+  const [fetchDriverPredictionFeatures, basisRequest] =
+    useGetDriverPredictionFeaturesMutation();
   const [predictNextLap, predictionRequest] = usePredictNextLapMutation();
-  const [predictionSnapshot, setPredictionSnapshot] =
-    useState<RaceNextLapPredictions>();
-  const [predictionError, setPredictionError] = useState<string | null>(null);
+
+  const [basisSnapshot, setBasisSnapshot] =
+    useState<DriverPredictionFeaturesResponse | null>(null);
+  const [pendingPrediction, setPendingPrediction] =
+    useState<NextLapPredictionCycle | null>(null);
   const [comparisonHistory, setComparisonHistory] = useState<
     PredictionComparisonEntry[]
   >([]);
-  const lastRequestedLapByDriverRef = useRef<Record<number, number>>({});
-  const previousPredictionByDriverRef = useRef<
-    Record<number, { predictedForLap: number; predictedNextLapTime: number }>
-  >({});
+  const [predictionError, setPredictionError] = useState<string | null>(null);
+  const [status, setStatus] = useState<PredictionWorkflowStatus>("no_data");
+  const [statusMessage, setStatusMessage] = useState(
+    "Choose a driver, then load the latest lap snapshot.",
+  );
+  const lastResolvedPredictionLapRef = useRef<number | null>(null);
 
   useEffect(() => {
-    lastRequestedLapByDriverRef.current = {};
-    previousPredictionByDriverRef.current = {};
-    setPredictionSnapshot(undefined);
-    setPredictionError(null);
+    lastResolvedPredictionLapRef.current = null;
+    setBasisSnapshot(null);
+    setPendingPrediction(null);
     setComparisonHistory([]);
+    setPredictionError(null);
+    setStatus("no_data");
+    setStatusMessage("Choose a driver, then load the latest lap snapshot.");
   }, [sessionId]);
 
   useEffect(() => {
-    if (selectedDriverNumber) {
-      delete lastRequestedLapByDriverRef.current[selectedDriverNumber];
-    }
-    setPredictionSnapshot(undefined);
-    setPredictionError(null);
+    lastResolvedPredictionLapRef.current = null;
+    setBasisSnapshot(null);
+    setPendingPrediction(null);
     setComparisonHistory([]);
+    setPredictionError(null);
+    setStatus("no_data");
+    setStatusMessage("Driver changed. Load the latest lap snapshot for this driver.");
   }, [selectedDriverNumber]);
 
   useEffect(() => {
-    if (!sessionId || !selectedDriverNumber || !requestPayload) {
+    if (!enabled) {
       return;
     }
 
-    const completedLaps = requestPayload.features.lap_number;
-    if (completedLaps <= 0) {
+    if (!selectedDriverNumber || !selectedDriver) {
+      setBasisSnapshot(null);
+      setPendingPrediction(null);
+      setStatus("no_data");
+      setStatusMessage("Select a driver, then load the latest lap snapshot.");
       return;
     }
 
-    if (lastRequestedLapByDriverRef.current[selectedDriverNumber] === completedLaps) {
-      return;
+    if (
+      pendingPrediction &&
+      completedLapNumber === pendingPrediction.predictedForLap &&
+      completedLapTime !== null &&
+      lastResolvedPredictionLapRef.current !== completedLapNumber
+    ) {
+      const deltaToActual = pendingPrediction.predictedNextLapTime - completedLapTime;
+      const accuracyPercentage = calculatePredictionAccuracyPercentage(
+        pendingPrediction.predictedNextLapTime,
+        completedLapTime,
+      );
+
+      lastResolvedPredictionLapRef.current = completedLapNumber;
+      setComparisonHistory((currentHistory) => [
+        {
+          driverNumber: pendingPrediction.driverNumber,
+          driverName: pendingPrediction.driverName,
+          basisLapNumber: pendingPrediction.basisLapNumber,
+          basisLapTime: pendingPrediction.basisLapTime,
+          lapNumber: completedLapNumber,
+          predictedLapTime: pendingPrediction.predictedNextLapTime,
+          actualLapTime: completedLapTime,
+          deltaToActual,
+          accuracyPercentage,
+          modelVersion: pendingPrediction.modelVersion,
+          resolvedAt: new Date().toISOString(),
+        },
+        ...currentHistory,
+      ].slice(0, 8));
+      setPendingPrediction(null);
+      setPredictionError(null);
+      setStatus("resolved");
+      setStatusMessage(
+        `Lap ${completedLapNumber} is complete. The result has been added to prediction history, and Lap ${completedLapNumber + 1} can now be prepared.`,
+      );
     }
-
-    let cancelled = false;
-
-    const runPrediction = async () => {
-      lastRequestedLapByDriverRef.current[selectedDriverNumber] = completedLaps;
-
-      try {
-        const response = await predictNextLap(requestPayload).unwrap();
-        if (cancelled) {
-          return;
-        }
-
-        const nextDriver = buildPredictionSnapshotDriver(
-          currentState,
-          requestPayload.features,
-          response.predicted_next_lap_time,
-        );
-        if (!nextDriver) {
-          return;
-        }
-
-        const previousPrediction =
-          previousPredictionByDriverRef.current[selectedDriverNumber];
-        const actualLapTime = nextDriver.lastLapTimeActual;
-
-        if (
-          previousPrediction &&
-          nextDriver.completedLaps === previousPrediction.predictedForLap &&
-          actualLapTime !== null
-        ) {
-          setComparisonHistory((currentHistory) => {
-            if (
-              currentHistory.some(
-                (entry) => entry.lapNumber === previousPrediction.predictedForLap,
-              )
-            ) {
-              return currentHistory;
-            }
-
-            return [
-              {
-                lapNumber: previousPrediction.predictedForLap,
-                predictedLapTime: previousPrediction.predictedNextLapTime,
-                actualLapTime,
-                deltaToActual:
-                  previousPrediction.predictedNextLapTime -
-                  actualLapTime,
-                accuracyPercentage: calculatePredictionAccuracyPercentage(
-                  previousPrediction.predictedNextLapTime,
-                  actualLapTime,
-                ),
-              },
-              ...currentHistory,
-            ].slice(0, 8);
-          });
-        }
-
-        previousPredictionByDriverRef.current[selectedDriverNumber] = {
-          predictedForLap: nextDriver.predictedForLap ?? completedLaps + 1,
-          predictedNextLapTime:
-            nextDriver.predictedNextLapTime ?? response.predicted_next_lap_time,
-        };
-
-        setPredictionSnapshot({
-          sessionId,
-          triggerLap: currentLap,
-          modelVersion: response.model_version,
-          generatedAt: new Date().toISOString(),
-          drivers: [nextDriver],
-        });
-        setPredictionError(null);
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        delete lastRequestedLapByDriverRef.current[selectedDriverNumber];
-        setPredictionError(resolvePredictionError(error));
-      }
-    };
-
-    void runPrediction();
-
-    return () => {
-      cancelled = true;
-    };
   }, [
-    currentLap,
-    currentState,
-    predictNextLap,
-    requestPayload,
+    enabled,
+    completedLapNumber,
+    completedLapTime,
+    pendingPrediction,
+    selectedDriver,
     selectedDriverNumber,
-    sessionId,
   ]);
 
+  const loadBasisSnapshot = async () => {
+    if (!enabled) {
+      setPredictionError("Open the prediction tab first.");
+      setStatus("no_data");
+      setStatusMessage("Prediction is available only while the prediction tab is active.");
+      return;
+    }
+
+    if (!selectedDriverNumber || !selectedDriver) {
+      setPredictionError("Choose a driver first.");
+      setStatus("no_data");
+      setStatusMessage("Select a driver, then load the latest lap snapshot.");
+      return;
+    }
+
+    setPredictionError(null);
+    setPendingPrediction(null);
+    setComparisonHistory([]);
+    setStatus("loading_basis");
+    setStatusMessage(`Loading the latest completed lap snapshot for Driver #${selectedDriverNumber}.`);
+
+    try {
+      const response = await fetchDriverPredictionFeatures(selectedDriverNumber).unwrap();
+      setBasisSnapshot(response);
+
+      if (response.features && response.lastCompletedLapNumber) {
+        setStatus("ready");
+        setStatusMessage(
+          `Lap ${response.lastCompletedLapNumber} is ready. Predict Lap ${response.lastCompletedLapNumber + 1} when you want.`,
+        );
+        return;
+      }
+
+      setStatus("no_data");
+      setStatusMessage(
+        "The selected driver still does not have a complete feature snapshot for prediction.",
+      );
+    } catch (error) {
+      setPredictionError(resolvePredictionError(error));
+      setStatus("error");
+      setStatusMessage("The latest lap snapshot could not be loaded from race state.");
+    }
+  };
+
+  const runPrediction = async () => {
+    if (!enabled) {
+      setPredictionError("Open the prediction tab first.");
+      setStatus("no_data");
+      setStatusMessage("Prediction is available only while the prediction tab is active.");
+      return;
+    }
+
+    if (!currentState || !basisSnapshot?.features || !selectedDriverNumber) {
+      setPredictionError(
+        "Prediction cannot run yet because the selected driver has no valid completed lap snapshot.",
+      );
+      setStatus("no_data");
+      setStatusMessage(
+        "Wait for a valid completed lap, then run the next-lap prediction again.",
+      );
+      return;
+    }
+
+    setPredictionError(null);
+    setStatus("predicting");
+    setStatusMessage(
+      `Sending Lap ${basisSnapshot.lastCompletedLapNumber ?? "?"} to the model and preparing a forecast for the next lap.`,
+    );
+
+    try {
+      const response = await predictNextLap({
+        features: basisSnapshot.features,
+      }).unwrap();
+
+      const cycle = buildPredictionCycle(
+        currentState,
+        basisSnapshot,
+        basisSnapshot.features,
+        response.predicted_next_lap_time,
+        response.model_version,
+      );
+
+      if (!cycle) {
+        setPredictionError("The prediction payload was created, but the UI could not build a valid prediction cycle.");
+        setStatus("error");
+        setStatusMessage("Prediction response arrived, but the cycle summary could not be assembled.");
+        return;
+      }
+
+      setPendingPrediction(cycle);
+      setStatus("waiting_for_actual");
+      setStatusMessage(
+        `Prediction stored for Lap ${cycle.predictedForLap}. Waiting for the driver to complete that lap so the estimate can be compared with the real time.`,
+      );
+    } catch (error) {
+      setPredictionError(resolvePredictionError(error));
+      setStatus("error");
+      setStatusMessage("The model request failed. Review the API error and retry the prediction.");
+    }
+  };
+
   return {
-    predictionSnapshot,
+    basisSnapshot,
+    pendingPrediction,
     comparisonHistory,
     predictionError,
-    isLoading: predictionRequest.isLoading && !predictionSnapshot,
-    isFetching: predictionRequest.isLoading,
+    status,
+    statusMessage,
+    isRefreshingBasis: basisRequest.isLoading,
+    isPredicting: predictionRequest.isLoading,
+    loadBasisSnapshot,
+    runPrediction,
   };
 };
 

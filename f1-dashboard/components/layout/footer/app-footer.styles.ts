@@ -6,6 +6,7 @@ import styled from "styled-components";
 
 export const StyledFooter = styled(Box)`
   margin-top: auto;
+  bottom: 0;
   border-top: 1px solid ${({ theme }) => theme.colors.border};
     background-color: ${({ theme }) => (theme.isDark ? appColors.navyDeep : appColors.panel)};
 

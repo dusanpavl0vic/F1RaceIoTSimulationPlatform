@@ -97,12 +97,22 @@ export type NextLapPredictionFeatures = {
   position: number | null;
   lap_time_last: number | null;
   lap_time_best: number | null;
+  lap_time_avg_last_3: number | null;
+  lap_time_avg_last_5: number | null;
   gap_to_leader: number | null;
   gap_to_ahead: number | null;
+  stint_number?: number | null;
   tyre_compound: string | null;
   tyre_is_new: boolean | null;
   tyre_laps_on_set: number | null;
   in_pit: boolean | null;
+  avg_speed_last_lap?: number | null;
+  max_speed_last_lap?: number | null;
+  avg_rpm_last_lap?: number | null;
+  avg_throttle_pct_last_lap?: number | null;
+  avg_raw_brake_last_lap?: number | null;
+  drs_open_ratio_last_lap?: number | null;
+  gear_changes_last_lap?: number | null;
 };
 
 export type NextLapPredictionBatchRequest = {
@@ -118,6 +128,25 @@ export type NextLapPredictionResponse = {
   model_version: string | null;
 };
 
+export type DriverPredictionFeaturesResponse = {
+  sessionId: string | null;
+  driverNumber: number;
+  driverName: string;
+  position: number | null;
+  lastCompletedLapNumber: number | null;
+  lastCompletedLapTimeSeconds: number | null;
+  lapTimeAvgLast3: number | null;
+  lapTimeAvgLast5: number | null;
+  stintNumber: number | null;
+  tyreCompound: string | null;
+  tyreIsNew: boolean | null;
+  tyreLapsOnSet: number | null;
+  inPit: boolean;
+  gapToLeader: number | null;
+  gapToAhead: number | null;
+  features: NextLapPredictionFeatures | null;
+};
+
 export type NextLapPredictionBatchResponse = {
   predictions: Array<{
     predicted_next_lap_time: number;
@@ -125,6 +154,15 @@ export type NextLapPredictionBatchResponse = {
   }>;
   model_version: string | null;
 };
+
+export type PredictionWorkflowStatus =
+  | "loading_basis"
+  | "ready"
+  | "predicting"
+  | "waiting_for_actual"
+  | "resolved"
+  | "no_data"
+  | "error";
 
 export type RaceNextLapPredictionDriver = {
   driverNumber: number;
@@ -148,11 +186,37 @@ export type RaceNextLapPredictions = {
 };
 
 export type PredictionComparisonEntry = {
+  driverNumber: number;
+  driverName: string;
+  basisLapNumber: number;
+  basisLapTime: number | null;
   lapNumber: number;
   predictedLapTime: number;
   actualLapTime: number;
   deltaToActual: number;
   accuracyPercentage: number;
+  modelVersion: string | null;
+  resolvedAt: string;
+};
+
+export type NextLapPredictionCycle = {
+  driverNumber: number;
+  driverName: string;
+  teamName: string | null;
+  teamColor: string | null;
+  position: number | null;
+  basisLapNumber: number;
+  predictedForLap: number;
+  basisLapTime: number | null;
+  bestLapTime: number | null;
+  averageLast3: number | null;
+  averageLast5: number | null;
+  predictedNextLapTime: number;
+  modelVersion: string | null;
+  generatedAt: string;
+  actualNextLapTime: number | null;
+  deltaToActual: number | null;
+  accuracyPercentage: number | null;
 };
 
 export type RaceCurrentDriverState = {
@@ -181,6 +245,13 @@ export type RaceCurrentDriverState = {
     compound: string | null;
     isNew: boolean | null;
     currentStintLapCount: number | null;
+  };
+  prediction: {
+    lapTimeHistory: number[];
+    lapTimeAvgLast3: number | null;
+    lapTimeAvgLast5: number | null;
+    lastCompletedLapNumber: number | null;
+    lastCompletedLapTimeSeconds: number | null;
   };
   race: {
     inPit: boolean;

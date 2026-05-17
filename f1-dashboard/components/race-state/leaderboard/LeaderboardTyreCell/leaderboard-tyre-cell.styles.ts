@@ -40,12 +40,6 @@ export const StyledTyreBadgeLabel = styled(Typography)`
   line-height: 1;
 `;
 
-export const StyledTyreLapCount = styled(Typography)`
-  font-family: var(--font-silkscreen), "Silkscreen", monospace;
-  font-size: 10px;
-  color: ${({ theme }) => theme.colors.textMuted};
-`;
-
 const resolveTyreAccent = (
   compound: string,
   theme: { colors: { textPrimary: string } },

@@ -24,8 +24,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={silkscreen.variable}>
-      <body className={silkscreen.className}>
+    <html lang="en" className={silkscreen.variable} suppressHydrationWarning>
+      <body className={silkscreen.className} suppressHydrationWarning>
         <AppRouterCacheProvider options={{ enableCssLayer: true }}>
           <AppProvider>
             <AppShell>{children}</AppShell>

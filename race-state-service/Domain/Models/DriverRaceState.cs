@@ -25,6 +25,8 @@ public sealed class DriverRaceState
     public int? Status { get; set; }
     public string? BestLapTime { get; set; }
     public string? LastLapTime { get; set; }
+    public int? LastRecordedLapTimeLapNumber { get; set; }
+    public List<double> LapTimeHistorySeconds { get; set; } = [];
     public JsonObject? Sectors { get; set; }
     public JsonObject? Speeds { get; set; }
     public string? TyreCompound { get; set; }

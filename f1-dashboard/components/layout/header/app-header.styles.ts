@@ -2,7 +2,7 @@
 import LogoImage from "@/assets/svg/arcticons_formula-1.svg";
 
 import { appColors } from "@/theme/colors";
-import { Box, Switch, Typography } from "@mui/material";
+import { Box, Button, Switch, Typography } from "@mui/material";
 import styled from "styled-components";
 
 export const StyledHeader = styled(Box)`
@@ -24,6 +24,20 @@ export const StyledHeaderInner = styled(Box)`
   justify-content: space-between;
   width: 100%;
   padding: 0px 30px;
+  gap: 18px;
+
+  ${({ theme }) => theme.breakpoints.down("md")} {
+    height: auto;
+    padding: 12px 16px;
+    flex-wrap: wrap;
+  }
+`;
+
+export const StyledHeaderBrand = styled(Box)`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 `;
 
 export const Logo = styled(LogoImage)`
@@ -34,6 +48,7 @@ export const Logo = styled(LogoImage)`
 export const StyledLogoTexts = styled(Box)`
   display: flex;
   flex-direction: column;
+  min-width: 0;
 `;
 
 export const StyledLogoTitle = styled(Typography)`
@@ -60,6 +75,53 @@ export const StyledToggleRow = styled(Box)`
   display: flex;
   align-items: center;
   gap: 6px;
+`;
+
+export const StyledHeaderControls = styled(Box)`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+
+  ${({ theme }) => theme.breakpoints.down("md")} {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
+  }
+`;
+
+export const StyledReplayControls = styled(Box)`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+`;
+
+export const StyledReplayButton = styled(Button)`
+  && {
+    min-width: 0;
+    padding: 7px 12px;
+    border-radius: 10px;
+    border: 1px solid ${({ theme }) => theme.colors.border};
+    background: ${({ theme }) => (theme.isDark ? appColors.navyRoyal : "rgba(5,14,60,0.05)")};
+    color: ${({ theme }) => theme.colors.textPrimary};
+    font-family: var(--font-silkscreen), "Silkscreen", monospace;
+    font-size: 9px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  &&:hover {
+    border-color: ${appColors.formulaRed};
+    background: ${({ theme }) => (theme.isDark ? "rgba(226, 28, 55, 0.14)" : "rgba(226, 28, 55, 0.08)")};
+  }
+`;
+
+export const StyledReplayStatus = styled(Typography)`
+  font-family: var(--font-silkscreen), "Silkscreen", monospace;
+  font-size: 9px;
+  color: ${({ theme }) => theme.colors.textMuted};
+  white-space: nowrap;
 `;
 
 export const StyledToggleLabel = styled(Typography) <{ $active: boolean }>`

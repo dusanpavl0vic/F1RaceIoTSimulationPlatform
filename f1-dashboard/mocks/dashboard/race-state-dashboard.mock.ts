@@ -327,6 +327,13 @@ function buildCurrentDriverState(entry: RaceLeaderboardEntry): RaceCurrentDriver
       isNew: entry.tyreIsNew,
       currentStintLapCount: entry.currentStintLapCount,
     },
+    prediction: {
+      lapTimeHistory: [],
+      lapTimeAvgLast3: null,
+      lapTimeAvgLast5: null,
+      lastCompletedLapNumber: null,
+      lastCompletedLapTimeSeconds: null,
+    },
     race: {
       inPit: entry.inPit,
       pitOut: entry.pitOut,

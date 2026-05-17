@@ -74,8 +74,6 @@ function LeaderboardDriverRow({
 
       <StyledDataCell>{row.lastLapTime ?? "—"}</StyledDataCell>
 
-      {!isTablet && <StyledMutedCell>{row.bestLapTime ?? "—"}</StyledMutedCell>}
-
       <StyledLastCell>
         <StyledStatusStack>
           <StyledStatusBadge

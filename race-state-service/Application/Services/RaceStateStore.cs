@@ -181,8 +181,11 @@ public sealed class RaceStateStore : IRaceStateStore
         driver.Status = FirstNonNull(incomingStatus, driver.Status);
         driver.BestLapTime = FirstNonEmpty(ExtractTimingValue(timing?["BestLapTime"]), driver.BestLapTime);
         driver.LastLapTime = FirstNonEmpty(ExtractTimingValue(timing?["LastLapTime"]), driver.LastLapTime);
+        var incomingCompletedLaps = TryParseInt(timing?["NumberOfLaps"]?.ToString());
+        driver.LapsCompleted = FirstNonNull(incomingCompletedLaps, driver.LapsCompleted);
         driver.Sectors = MergeJsonObject(driver.Sectors, timing?["Sectors"]);
         driver.Speeds = MergeJsonObject(driver.Speeds, timing?["Speeds"]);
+        TryRecordCompletedLapTime(driver, incomingCompletedLaps, driver.LastLapTime);
 
         ApplyDriverRaceStatus(driver, explicitInPit, explicitPitOut, incomingStatus, driver.LastLapTime);
 
@@ -356,6 +359,8 @@ public sealed class RaceStateStore : IRaceStateStore
                     Status = entry.Value.Status,
                     BestLapTime = entry.Value.BestLapTime,
                     LastLapTime = entry.Value.LastLapTime,
+                    LastRecordedLapTimeLapNumber = entry.Value.LastRecordedLapTimeLapNumber,
+                    LapTimeHistorySeconds = [.. entry.Value.LapTimeHistorySeconds],
                     Sectors = entry.Value.Sectors?.DeepClone().AsObject(),
                     Speeds = entry.Value.Speeds?.DeepClone().AsObject(),
                     TyreCompound = entry.Value.TyreCompound,
@@ -509,6 +514,61 @@ public sealed class RaceStateStore : IRaceStateStore
         }
 
         return value.Trim().ToUpperInvariant();
+    }
+
+    private static void TryRecordCompletedLapTime(
+        DriverRaceState driver,
+        int? completedLapNumber,
+        string? lastLapTime)
+    {
+        if (completedLapNumber is null || completedLapNumber <= 0)
+        {
+            return;
+        }
+
+        if (driver.LastRecordedLapTimeLapNumber is not null
+            && completedLapNumber <= driver.LastRecordedLapTimeLapNumber)
+        {
+            return;
+        }
+
+        var lapTimeSeconds = TryParseLapTimeSeconds(lastLapTime);
+        if (lapTimeSeconds is null)
+        {
+            return;
+        }
+
+        driver.LapTimeHistorySeconds.Add(lapTimeSeconds.Value);
+        driver.LastRecordedLapTimeLapNumber = completedLapNumber;
+    }
+
+    private static double? TryParseLapTimeSeconds(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim().ToUpperInvariant();
+        if (normalized is "-" or "PIT" or "PIT IN" or "PIT OUT" or "STOP")
+        {
+            return null;
+        }
+
+        if (normalized.Contains(':'))
+        {
+            var parts = normalized.Split(':', 2);
+            if (parts.Length == 2
+                && int.TryParse(parts[0], out var minutes)
+                && double.TryParse(parts[1], out var seconds))
+            {
+                return minutes * 60d + seconds;
+            }
+
+            return null;
+        }
+
+        return double.TryParse(normalized, out var parsed) ? parsed : null;
     }
 
     private static JsonObject? MergeJsonObject(JsonObject? current, JsonNode? updateNode)

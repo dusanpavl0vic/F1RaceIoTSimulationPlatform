@@ -1,9 +1,10 @@
 "use client";
 
+import { GlobalBlockingLoader } from "@/components/shared/GlobalBlockingLoader/global-blocking-loader";
 import LeaderboardTable from "@/components/race-state/leaderboard/LeaderboardTable/leaderboard-table";
 import { useDevice } from "@/hooks/use-device";
 import { useRaceDashboardLive } from "@/hooks/useRaceDashboardLive";
-import { CircularProgress, Typography } from "@mui/material";
+import { Typography } from "@mui/material";
 import { DashboardHero } from "../DashboardHero/dashboard-hero";
 import { DashboardSessionCards } from "../DashboardSessionCards/dashboard-session-cards";
 import { LiveTransportPanel } from "../LiveTransportPanel/live-transport-panel";
@@ -28,8 +29,7 @@ export function RaceDashboardScreen() {
   if (isLoading) {
     return (
       <StyledDashboardShell>
-        <CircularProgress size={24} />
-        <Typography>Loading dashboard...</Typography>
+        <GlobalBlockingLoader open label="LOADING DASHBOARD..." />
       </StyledDashboardShell>
     );
   }

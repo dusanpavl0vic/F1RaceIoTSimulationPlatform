@@ -43,4 +43,13 @@ public sealed class RaceStateController(RaceStateReadService raceStateReadServic
         return Ok(raceStateReadService.GetDashboard());
     }
 
+    [HttpGet("prediction/drivers/{driverNumber:int}/next-lap-features")]
+    public IActionResult GetDriverNextLapPredictionFeatures(int driverNumber)
+    {
+        var features = raceStateReadService.GetDriverPredictionFeatures(driverNumber);
+        return features is null || features.Features is null
+            ? NotFound()
+            : Ok(features);
+    }
+
 }

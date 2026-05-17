@@ -1,4 +1,6 @@
 import type {
+  DriverPredictionFeaturesResponse,
+  NextLapPredictionFeatures,
   NextLapPredictionRequest,
   NextLapPredictionResponse,
   NextLapPredictionBatchRequest,
@@ -13,8 +15,42 @@ const useDashboardMocks =
   process.env.NEXT_PUBLIC_USE_DASHBOARD_MOCKS === "true";
 const predictionApiBaseUrl =
   process.env.NEXT_PUBLIC_PREDICTION_API_BASE_URL ?? "http://localhost:8087";
+const replayApiBaseUrl =
+  process.env.NEXT_PUBLIC_REPLAY_API_BASE_URL ?? "http://localhost:8080";
 
 const tyreCompounds = ["MEDIUM", "HARD", "SOFT"] as const;
+
+const normalizePredictionFeatures = (
+  payload: Record<string, unknown> | null | undefined,
+): NextLapPredictionFeatures | null => {
+  if (!payload) {
+    return null;
+  }
+
+  return {
+    driver_number: Number(payload.driver_number ?? payload.driverNumber),
+    lap_number: Number(payload.lap_number ?? payload.lapNumber),
+    position: (payload.position as number | null | undefined) ?? null,
+    lap_time_last: (payload.lap_time_last as number | null | undefined) ?? (payload.lapTimeLast as number | null | undefined) ?? null,
+    lap_time_best: (payload.lap_time_best as number | null | undefined) ?? (payload.lapTimeBest as number | null | undefined) ?? null,
+    lap_time_avg_last_3: (payload.lap_time_avg_last_3 as number | null | undefined) ?? (payload.lapTimeAvgLast3 as number | null | undefined) ?? null,
+    lap_time_avg_last_5: (payload.lap_time_avg_last_5 as number | null | undefined) ?? (payload.lapTimeAvgLast5 as number | null | undefined) ?? null,
+    gap_to_leader: (payload.gap_to_leader as number | null | undefined) ?? (payload.gapToLeader as number | null | undefined) ?? null,
+    gap_to_ahead: (payload.gap_to_ahead as number | null | undefined) ?? (payload.gapToAhead as number | null | undefined) ?? null,
+    stint_number: (payload.stint_number as number | null | undefined) ?? (payload.stintNumber as number | null | undefined) ?? null,
+    tyre_compound: (payload.tyre_compound as string | null | undefined) ?? (payload.tyreCompound as string | null | undefined) ?? null,
+    tyre_is_new: (payload.tyre_is_new as boolean | null | undefined) ?? (payload.tyreIsNew as boolean | null | undefined) ?? null,
+    tyre_laps_on_set: (payload.tyre_laps_on_set as number | null | undefined) ?? (payload.tyreLapsOnSet as number | null | undefined) ?? null,
+    in_pit: (payload.in_pit as boolean | null | undefined) ?? (payload.inPit as boolean | null | undefined) ?? null,
+    avg_speed_last_lap: (payload.avg_speed_last_lap as number | null | undefined) ?? (payload.avgSpeedLastLap as number | null | undefined) ?? null,
+    max_speed_last_lap: (payload.max_speed_last_lap as number | null | undefined) ?? (payload.maxSpeedLastLap as number | null | undefined) ?? null,
+    avg_rpm_last_lap: (payload.avg_rpm_last_lap as number | null | undefined) ?? (payload.avgRpmLastLap as number | null | undefined) ?? null,
+    avg_throttle_pct_last_lap: (payload.avg_throttle_pct_last_lap as number | null | undefined) ?? (payload.avgThrottlePctLastLap as number | null | undefined) ?? null,
+    avg_raw_brake_last_lap: (payload.avg_raw_brake_last_lap as number | null | undefined) ?? (payload.avgRawBrakeLastLap as number | null | undefined) ?? null,
+    drs_open_ratio_last_lap: (payload.drs_open_ratio_last_lap as number | null | undefined) ?? (payload.drsOpenRatioLastLap as number | null | undefined) ?? null,
+    gear_changes_last_lap: (payload.gear_changes_last_lap as number | null | undefined) ?? (payload.gearChangesLastLap as number | null | undefined) ?? null,
+  };
+};
 
 const buildMockTyreStintStrategy = (
   sessionId: string,
@@ -118,6 +154,32 @@ export const raceStateApi = baseApi.injectEndpoints({
       },
       providesTags: ["RaceState"],
     }),
+    getDriverPredictionFeatures: builder.mutation<
+      DriverPredictionFeaturesResponse,
+      number
+    >({
+      async queryFn(driverNumber, _api, _extraOptions, fetchWithBQ) {
+        const result = await fetchWithBQ({
+          url: `/api/race-state/prediction/drivers/${driverNumber}/next-lap-features`,
+          method: "GET",
+        });
+
+        if (result.error) {
+          return { error: result.error };
+        }
+
+        const response = result.data as DriverPredictionFeaturesResponse & {
+          features?: Record<string, unknown> | null;
+        };
+
+        return {
+          data: {
+            ...response,
+            features: normalizePredictionFeatures(response.features),
+          },
+        };
+      },
+    }),
     predictNextLapBatch: builder.mutation<
       NextLapPredictionBatchResponse,
       NextLapPredictionBatchRequest
@@ -180,6 +242,35 @@ export const raceStateApi = baseApi.injectEndpoints({
         return { data: result.data as NextLapPredictionResponse };
       },
     }),
+    bootstrapReplay: builder.mutation<unknown, void>({
+      async queryFn(_arg, _api, _extraOptions, fetchWithBQ) {
+        const result = await fetchWithBQ({
+          url: `${replayApiBaseUrl}/api/replay/bootstrap`,
+          method: "POST",
+          body: {},
+        });
+
+        if (result.error) {
+          return { error: result.error };
+        }
+
+        return { data: result.data as unknown };
+      },
+    }),
+    startReplay: builder.mutation<unknown, void>({
+      async queryFn(_arg, _api, _extraOptions, fetchWithBQ) {
+        const result = await fetchWithBQ({
+          url: `${replayApiBaseUrl}/api/replay/start`,
+          method: "POST",
+        });
+
+        if (result.error) {
+          return { error: result.error };
+        }
+
+        return { data: result.data as unknown };
+      },
+    }),
   }),
 });
 
@@ -189,4 +280,7 @@ export const {
   usePredictNextLapMutation,
   useGetTyreStintStrategyQuery,
   usePredictNextLapBatchMutation,
+  useBootstrapReplayMutation,
+  useStartReplayMutation,
+  useGetDriverPredictionFeaturesMutation,
 } = raceStateApi;

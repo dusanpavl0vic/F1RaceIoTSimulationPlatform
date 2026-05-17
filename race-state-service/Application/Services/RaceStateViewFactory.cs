@@ -13,8 +13,8 @@ public sealed class RaceStateViewFactory
         => snapshot.Drivers.Values
             .OrderBy(driver => ResolveDriverActivityBucket(snapshot, driver))
             .ThenBy(driver => ResolvePrimaryLeaderboardSignal(driver) ?? int.MaxValue)
-            .ThenBy(driver => driver.Position ?? int.MaxValue)
-            .ThenBy(driver => driver.LapSeriesPosition ?? int.MaxValue)
+            .ThenBy(driver => ResolveGapToLeaderSeconds(driver) ?? double.MaxValue)
+            .ThenBy(driver => ResolveGapToAheadSeconds(driver) ?? double.MaxValue)
             .ThenBy(driver => driver.GridPosition ?? int.MaxValue)
             .ThenBy(driver => driver.Line ?? int.MaxValue)
             .ThenBy(driver => driver.DriverNumber)
@@ -135,6 +135,16 @@ public sealed class RaceStateViewFactory
                 ["isNew"] = driver.TyreIsNew,
                 ["currentStintLapCount"] = driver.CurrentStintLapCount
             },
+            ["prediction"] = new JsonObject
+            {
+                ["lapTimeHistory"] = new JsonArray(driver.LapTimeHistorySeconds.Select(value => JsonValue.Create(value)).ToArray()),
+                ["lapTimeAvgLast3"] = CalculateRollingAverage(driver.LapTimeHistorySeconds, 3),
+                ["lapTimeAvgLast5"] = CalculateRollingAverage(driver.LapTimeHistorySeconds, 5),
+                ["lastCompletedLapNumber"] = driver.LastRecordedLapTimeLapNumber,
+                ["lastCompletedLapTimeSeconds"] = driver.LapTimeHistorySeconds.Count > 0
+                    ? driver.LapTimeHistorySeconds[^1]
+                    : null
+            },
             ["race"] = new JsonObject
             {
                 ["inPit"] = driver.InPit,
@@ -194,6 +204,12 @@ public sealed class RaceStateViewFactory
     private static int? ResolvePrimaryLeaderboardSignal(DriverRaceState driver)
         => driver.Position ?? driver.LapSeriesPosition ?? driver.GridPosition ?? driver.Line;
 
+    private static double? ResolveGapToLeaderSeconds(DriverRaceState driver)
+        => TryParseGapSeconds(driver.GapToLeader);
+
+    private static double? ResolveGapToAheadSeconds(DriverRaceState driver)
+        => TryParseGapSeconds(driver.IntervalToPositionAhead);
+
     private static bool IsDidNotStart(RaceStateSnapshot snapshot, DriverRaceState driver)
         => (snapshot.CurrentLap ?? 0) > 1
             && !driver.Retired
@@ -219,4 +235,33 @@ public sealed class RaceStateViewFactory
 
     private static int? TryParseInt(string? value) => int.TryParse(value, out var parsed) ? parsed : null;
     private static bool? TryParseBool(string? value) => bool.TryParse(value, out var parsed) ? parsed : null;
+
+    private static double? TryParseGapSeconds(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        if (normalized.StartsWith("LAP ", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("leader", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("-", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return double.TryParse(normalized.TrimStart('+'), out var parsed) ? parsed : null;
+    }
+
+    private static double? CalculateRollingAverage(IReadOnlyList<double> values, int window)
+    {
+        if (values.Count == 0)
+        {
+            return null;
+        }
+
+        var selected = values.TakeLast(Math.Min(window, values.Count)).ToArray();
+        return selected.Sum() / selected.Length;
+    }
 }

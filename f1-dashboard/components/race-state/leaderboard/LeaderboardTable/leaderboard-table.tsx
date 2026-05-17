@@ -47,7 +47,6 @@ function LeaderboardTable({
               {!isTablet && <StyledHeadCell>INT</StyledHeadCell>}
               {!isMobile && <StyledHeadCell>TYRE</StyledHeadCell>}
               <StyledHeadCell>LAST</StyledHeadCell>
-              {!isTablet && <StyledHeadCell>BEST</StyledHeadCell>}
               <StyledLastHeadCell>STATUS</StyledLastHeadCell>
             </TableRow>
           </TableHead>

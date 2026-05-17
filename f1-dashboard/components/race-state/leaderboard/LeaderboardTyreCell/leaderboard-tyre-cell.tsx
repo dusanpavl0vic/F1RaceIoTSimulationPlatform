@@ -2,7 +2,6 @@ import type { RaceDashboardDriverRow } from "@/features/store/race-state/raceSta
 import {
   StyledTyreBadge,
   StyledTyreBadgeLabel,
-  StyledTyreLapCount,
   StyledTyreWrapper,
 } from "./leaderboard-tyre-cell.styles";
 
@@ -24,9 +23,6 @@ function LeaderboardTyreCell({ row }: LeaderboardTyreCellProps) {
       >
         <StyledTyreBadgeLabel>{shortLabel}</StyledTyreBadgeLabel>
       </StyledTyreBadge>
-      {row.currentStintLapCount && (
-        <StyledTyreLapCount>{row.currentStintLapCount}L</StyledTyreLapCount>
-      )}
     </StyledTyreWrapper>
   );
 }
